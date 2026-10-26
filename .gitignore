@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.venv/
+venv/
+
+# Runtime data (SQLite store, disk scratchpad)
+backend/data/
+data/
+*.db
+
+# Env
+.env
+
+# Internal planning docs — never commit
+contextgc_final_plan_v2.md
+contextgc_architecture_execution_plan.md
+contextgc_improvements_iteration_log.md
+contextgc_buzzword_glossary.md
+pitch.txt
+chat_id.txt
