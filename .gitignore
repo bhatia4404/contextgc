@@ -21,3 +21,8 @@ contextgc_improvements_iteration_log.md
 contextgc_buzzword_glossary.md
 pitch.txt
 chat_id.txt
+
+# Benchmark run artifacts
+backend/benchmark/results/
+!.gitkeep
+tmp_tel.json
