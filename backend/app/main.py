@@ -198,14 +198,19 @@ async def _forward(request: Request, path: str) -> Response:
     body = await request.body()
     raw_body = body  # keep the original; GC must never destroy it
     run_id = request.headers.get("x-contextgc-run", "default")
+    stages_preset = request.headers.get("x-contextgc-stages") or None
     t_start = time.perf_counter()
-    body, report = gc.process_payload(path, body, run_id=run_id)
+    try:
+        body, report = gc.process_payload(path, body, run_id=run_id,
+                                          stages_preset=stages_preset)
+    except ValueError as exc:  # e.g. unknown stages preset
+        return JSONResponse({"error": str(exc)}, status_code=400)
 
     turn_id = store_mod.get_store().append(path, run_id, raw_body, body, report)
 
     fwd_headers = {k: v for k, v in request.headers.items() if k.lower() not in {
         "host", "content-length", "connection", "keep-alive", "transfer-encoding",
-        "x-contextgc-run",
+        "x-contextgc-run", "x-contextgc-stages",
     }}
 
     settings = config.get_settings()

@@ -49,11 +49,11 @@ _USER_TURNS = [
 _DUMP_LINES = 220   # ~3,300 chars ≈ 800 est tokens per "tool result"
 
 
-def scenario_turns(n_turns: int) -> list[dict]:
+def scenario_turns(n_turns: int, dumps_every: int = 4) -> list[dict]:
     turns = []
     for t in range(n_turns):
         turns.append({"role": "user", "content": _USER_TURNS[t % len(_USER_TURNS)]})
-        if t % 4 == 2:
+        if dumps_every and t % dumps_every == 2:
             turns.append({
                 "role": "tool",
                 "name": "bash",
@@ -71,16 +71,21 @@ def estimate_tokens(payload: dict) -> int:
 
 
 async def run_lane(client: httpx.AsyncClient, base_url: str, n_turns: int,
-                   model: str, telemetry_base: str | None = None) -> list[dict]:
+                   model: str, telemetry_base: str | None = None,
+                   run_id: str = "default", dumps_every: int = 4,
+                   stages_preset: str | None = None) -> list[dict]:
     """One lane: grows a real conversation history turn by turn.
 
     telemetry_base: for Lane B, the proxy base — after each turn we pull the
     turn_telemetry event the proxy recorded, giving what ACTUALLY entered
     prefill (clean_tokens, per-stage savings, negotiated num_ctx).
+
+    run_id isolates cross-request GC state per experiment (unique per run);
+    stages_preset drives the proxy's per-request stage filter header.
     """
     history: list[dict] = [{"role": "system",
                             "content": "You are a terse coding agent. Answer in <= 2 sentences."}]
-    script = scenario_turns(n_turns)
+    script = scenario_turns(n_turns, dumps_every=dumps_every)
     metrics = []
     seen_event_ids: set[str] = set()
     for t, incoming in enumerate(script):
@@ -94,7 +99,9 @@ async def run_lane(client: httpx.AsyncClient, base_url: str, n_turns: int,
         try:
             req = client.build_request(
                 "POST", f"{base_url}/api/chat", json=payload,
-                headers={"content-type": "application/json"})
+                headers={"content-type": "application/json",
+                         "x-contextgc-run": run_id,
+                         **({"x-contextgc-stages": stages_preset} if stages_preset else {})})
             resp = await client.send(req, stream=True)
             status = resp.status_code
             if status == 200:
@@ -216,6 +223,50 @@ def print_table(rows: list[dict]) -> None:
               f"{s['errors']}")
 
 
+async def run_session(client: httpx.AsyncClient, args: argparse.Namespace,
+                      order: str, run_id: str) -> tuple[list[dict], dict[str, list]]:
+    """One alternating session: run the requested lanes in the given order.
+
+    order: 'ab' or 'ba' — swapping which lane goes first per session separates
+    a real lane effect from warm-up/churn drift (Iteration 13 item 2).
+    """
+    lane_desc = {
+        "a": ("A", "raw ollama", args.ollama_url, False, None),
+        "b": ("B", "contextgc", args.proxy_url, True, args.stages),
+    }
+    summaries = []
+    lane_metrics: dict[str, list] = {}
+    for lane in order:
+        key, label, url, with_telemetry, stages = lane_desc[lane]
+        print(f"[harness] Lane {key} ({label}, {args.turns} turns) ...")
+        m = await run_lane(client, url, args.turns, args.model,
+                           telemetry_base=url if with_telemetry else None,
+                           run_id=run_id, dumps_every=args.dumps_every,
+                           stages_preset=stages)
+        lane_metrics[key] = m
+        s = summarize(f"{key}: {label}", m)
+        summaries.append(s)
+        print_table([s])
+    return summaries, lane_metrics
+
+
+def _mean(rows: list[dict], key: str) -> float | None:
+    vals = [r.get(key) for r in rows if r.get(key) is not None]
+    return (sum(vals) / len(vals)) if vals else None
+
+
+def lane_avg(rows: list[dict]) -> dict:
+    """Cross-session mean of a lane's per-session summary rows."""
+    out = {"lane": rows[0]["lane"], "turns": rows[0]["turns"],
+           "sessions": len(rows)}
+    for key in ("tokens_first", "tokens_sent_last", "raw_grew_to",
+                "tokens_saved_total", "ttft_avg_s", "latency_avg_s",
+                "errors"):
+        m = _mean(rows, key)
+        out[f"avg_{key}"] = round(m, 4) if m is not None else None
+    return out
+
+
 async def main() -> None:
     ap = argparse.ArgumentParser(description="ContextGC two-lane benchmark harness (minimal)")
     ap.add_argument("--turns", type=int, default=15)
@@ -223,34 +274,61 @@ async def main() -> None:
     ap.add_argument("--ollama-url", default="http://localhost:11434")
     ap.add_argument("--proxy-url", default="http://localhost:11400")
     ap.add_argument("--lane", choices=["a", "b", "both"], default="both")
+    ap.add_argument("--dumps-every", type=int, default=4,
+                    help="inject a tool dump every N turns (0 = never)")
+    ap.add_argument("--stages", default="full",
+                    choices=["full", "none", "anchor_only", "no_semantic", "no_evict"],
+                    help="Lane-B stage-filter preset (control experiments)")
+    ap.add_argument("--rotate", type=int, default=1,
+                    help="run the lane pair N times, alternating which lane goes "
+                         "first (A/B then B/A) to cancel warm-up/churn drift; "
+                         "per-session summaries + cross-session averages in JSON")
     ap.add_argument("--tag", default="run", help="output filename tag")
     args = ap.parse_args()
 
     RESULTS_DIR.mkdir(exist_ok=True)
+    n_rotate = max(1, args.rotate)
 
+    sessions, agg = [], {"A": [], "B": []}
     async with httpx.AsyncClient(timeout=httpx.Timeout(600.0, connect=10.0)) as client:
-        summaries = []
-        lane_metrics: dict[str, list] = {}
-        if args.lane in ("a", "both"):
-            print(f"[harness] Lane A (raw Ollama, {args.turns} turns) ...")
-            m = await run_lane(client, args.ollama_url, args.turns, args.model)
-            lane_metrics["A"] = m
-            s = summarize("A: raw ollama", m)
-            summaries.append(s)
-            print_table([s])
-        if args.lane in ("b", "both"):
-            print(f"[harness] Lane B (ContextGC proxy, {args.turns} turns) ...")
-            m = await run_lane(client, args.proxy_url, args.turns, args.model,
-                               telemetry_base=args.proxy_url)
-            lane_metrics["B"] = m
-            s = summarize("B: contextgc", m)
-            summaries.append(s)
-            print_table([s])
+        for i in range(n_rotate):
+            order = "ab" if i % 2 == 0 else "ba"
+            if args.lane == "a":
+                order = "a"
+            elif args.lane == "b":
+                order = "b"
+            run_id = f"{args.tag}-s{i + 1}-{time.time_ns()}"  # unique per session
+            print(f"[harness] session {i + 1}/{n_rotate} "
+                  f"(run_id={run_id}, lanes {'+'.join(order).upper()}) ...")
+            summaries, lane_metrics = await run_session(client, args, order, run_id)
+            for s in summaries:
+                agg[s["lane"].split(":")[0]].append(s)
+            sessions.append({
+                "session": i + 1,
+                "lane_order": " then ".join(s["lane"] for s in summaries),
+                "summary": summaries,
+                "turn_metrics": lane_metrics,
+            })
+
+        # Cross-session averages (the churn-resistant numbers).
+        averages = {key: lane_avg(rows) for key, rows in agg.items() if rows}
+        if len(avg_rows := list(averages.values())) > 0:
+            print(f"\n[averages across {n_rotate} session(s)]")
+            header = (f"{'lane':24}{'sessions':10}{'sent last (est)':17}"
+                      f"{'saved total':13}{'ttft avg':10}{'lat avg':10}{'errors':7}")
+            print(header)
+            for a in avg_rows:
+                print(f"{str(a['lane']):24}{a['sessions']:<10}"
+                      f"{a['avg_tokens_sent_last']:<17.1f}"
+                      f"{a['avg_tokens_saved_total']:<13.1f}"
+                      f"{str(a['avg_ttft_avg_s']):10}"
+                      f"{str(a['avg_latency_avg_s']):10}"
+                      f"{a['avg_errors']:.1f}")
 
         out_file = RESULTS_DIR / f"{time.strftime('%Y%m%d_%H%M%S')}_{args.tag}.json"
         out_file.write_text(json.dumps({
-            "args": vars(args), "summary": summaries,
-            "turn_metrics": lane_metrics,
+            "args": vars(args), "summary": summaries, "summary_avg": averages,
+            "sessions": sessions,
         }, indent=2, ensure_ascii=False))
         print(f"[harness] metrics written: {out_file}")
 
