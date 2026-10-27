@@ -15,8 +15,10 @@ import json
 from typing import Any
 
 from app import config
-from app.core import classifier, hash_filter, num_ctx, offload
+from app.core import classifier, hash_filter, num_ctx, offload, semantic
 from app.core import anchored_state
+from app.core import evict
+from app.core import fidelity
 
 
 def process_payload(path: str, body: bytes, run_id: str = "default") -> tuple[bytes, dict[str, Any]]:
@@ -29,6 +31,17 @@ def process_payload(path: str, body: bytes, run_id: str = "default") -> tuple[by
         payload, report = classifier.annotate(path, body)
     except Exception:  # undecodable / non-chat -> identity
         return body, {"pipeline": {"skipped": "undecodable or non-chat payload"}}
+
+    # --- Stage 2.3: deterministic fidelity fallback — if the RAW history
+    #     shows the model looping/derailing, this request IS the recovery
+    #     turn: replay the raw view byte-identically, no GC at all. Evidence
+    #     lives in the arriving history, so no cross-request state is needed.
+    if settings.fidelity_enabled and not report.get("skipped"):
+        sig = fidelity.detect(payload)
+        if sig:
+            report["fidelity_fallback"] = {"triggered": True, "signals": sig}
+            report["pipeline"] = {"stages": ["fidelity_fallback"], "modified": False}
+            return body, report  # ← recovery turn: the raw view wins
 
     modified = False
     stages_run = ["stage0_classifier"]
@@ -53,11 +66,27 @@ def process_payload(path: str, body: bytes, run_id: str = "default") -> tuple[by
             modified = True
         stages_run.append("ref_reinject")
 
+    # --- Stage 2.1: semantic contraction (same-namespace + negation guard;
+    #     runs AFTER reinject so a pointer-restored dump isn't re-merged away,
+    #     BEFORE anchor/num_ctx which see the post-contraction payload) ---
+    if settings.semantic_enabled and not report.get("skipped"):
+        if semantic.run_semantic(payload, report, run_id):
+            modified = True
+        stages_run.append("semantic_contraction")
+
     # --- Stage 1.6: anchored state (pinned AFTER all cleaning; num_ctx runs after) ---
     if settings.state_enabled and not report.get("skipped"):
         if anchored_state.run_anchor(payload, report, run_id):
             modified = True
         stages_run.append("anchored_state")
+
+    # --- Stage 2.2: importance eviction (pressure-triggered; runs AFTER the
+    #     anchor pin so the state block was extracted from the full history,
+    #     BEFORE num_ctx which sizes the post-eviction window) ---
+    if settings.evict_enabled and not report.get("skipped"):
+        if evict.run_evict(payload, report, run_id):
+            modified = True
+        stages_run.append("importance_eviction")
 
     # --- Stage 1.7: dynamic num_ctx negotiation (LAST: sizes what remains) ---
     if settings.numctx_enabled and not report.get("skipped"):

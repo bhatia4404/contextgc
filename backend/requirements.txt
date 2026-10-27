@@ -5,5 +5,7 @@ pydantic>=2.7
 pydantic-settings>=2.3
 pytest>=8.0
 pytest-asyncio>=0.23
+# optional (Tier 2): pip install sentence-transformers — S4 semantic contraction
+# falls back to clean skip without it; tests inject fakes, so CI needs neither
 # optional (GPU rigs only): pip install pynvml — VRAM sampler falls back to
 # nvidia-smi CLI, then to the CPU KV-token gauge, so this is not required.

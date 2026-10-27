@@ -27,8 +27,12 @@ DUMP = "\n".join(f"[test line {i}] output row detail ..." for i in range(400)) \
 
 @pytest.fixture(autouse=True)
 def stage_env(settings_factory, tmp_path, monkeypatch) -> Settings:
-    """GC on + a per-test scratchpad dir; resets Stage-1 state."""
-    s = settings_factory(gc_enabled=True, scratchpad_dir=str(tmp_path / "scratch"))
+    """GC on + a per-test scratchpad dir; resets Stage-1 state.
+    Tier-2 stages (semantic/evict/fidelity) pinned OFF: this suite isolates
+    the 1.5 offload contract, and Tier-2 has its own suites."""
+    s = settings_factory(gc_enabled=True, scratchpad_dir=str(tmp_path / "scratch"),
+                         semantic_enabled=False, evict_enabled=False,
+                         fidelity_enabled=False)
     hash_filter.reset_state()
     yield s
     hash_filter.reset_state()

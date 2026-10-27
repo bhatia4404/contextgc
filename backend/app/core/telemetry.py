@@ -68,6 +68,8 @@ def recent(n: int = 100) -> list[dict]:
 _STAGES_WITH_SAVINGS = {                       # gc_report key -> savings field
     "stage1_dedup": "tokens_saved_estimate",
     "tool_offload": "tokens_saved_estimate",
+    "semantic_contraction": "tokens_saved_estimate",
+    "importance_eviction": "tokens_saved_estimate",
 }
 
 
@@ -101,7 +103,8 @@ def summarize_gc_report(report: dict) -> dict:
             "respected_client", "client_num_ctx") if k in neg}
     for extra, key in (("state_pinned", "state_pinned"),
                        ("anchored_state_updates", "anchored_state_updates"),
-                       ("procedural_locked", "procedural_locked")):
+                       ("procedural_locked", "procedural_locked"),
+                       ("fidelity_fallback", "fidelity_fallback")):
         if extra in report:
             out["meta"][key] = report[extra]
     return out

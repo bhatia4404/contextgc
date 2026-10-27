@@ -53,7 +53,14 @@ CrewAI / AutoGen / LangChain app
 │  S1  MinHash/LSH structural dedup (cross-agent aware)       │
 │  S2  Pointer offload of dump-sized tool results → disk      │
 │  S2b On-demand re-injection when an agent asks for a ref    │
+│  S2c Semantic contraction: embedding merge of rephrased     │
+│      facts (same-namespace + negation guard)                │
 │  S3  Anchored 4-key state block pinned to window top        │
+│  S2d Importance eviction under window pressure (recency ×   │
+│      length; live turn, system prompts, state pin,          │
+│      referenced-later and standing facts hard-protected)    │
+│  S5  Fidelity fallback: loop/confusion rule engine serves   │
+│      a recovery turn from the raw view                      │
 │  S4  Dynamic num_ctx negotiation (≈1.25× actual tokens)     │
 ├─────────────────────────────────────────────────────────────┤
 │ Telemetry bus: per-turn tokens, TTFT, per-stage savings,    │
@@ -219,18 +226,33 @@ negotiation, and the telemetry bus.
 
 ## Status & roadmap
 
-**Shipped — core GC pipeline (complete):** ✅ proxy + SSE passthrough · append-only
-store · memory classifier · dedup · pointer offload + re-injection · anchored state ·
-dynamic num_ctx · telemetry bus — **64 tests passing**.
+Shipped — **full GC intelligence (Phase 1 complete, all three tiers)**:
+
+- **Tier 1 ✅** proxy + SSE passthrough · append-only store · memory classifier ·
+  dedup · pointer offload + re-injection · anchored state · dynamic num_ctx ·
+  telemetry bus
+- **Tier 2 ✅** semantic contraction (embedding merge, same-namespace + negation
+  guard, never merges contradictions) · importance eviction (pressure-triggered,
+  recency × length with hard protections for the live turn, system prompts, the
+  state pin, referenced-later turns and standing facts) · deterministic fidelity
+  fallback (loop/confusion rule engine → recovery turn replays the raw view)
+
+**89 tests passing** (mock sink, no Ollama required).
+
+### Pipeline order
+
+`fidelity check (raw evidence) → S0 classify → S1 dedup → S2 offload →
+S2b re-inject → S4 semantic contraction → S3 anchored state → S5 importance
+eviction (pressure-triggered) → num_ctx negotiation`
 
 **Build in progress:**
 
-- 🔲 **Semantic contraction** — merge near-duplicate *facts* (embedding similarity,
-  same-agent namespace, negation guard) beyond structural dedup
-- 🔲 **Importance eviction** — policy-driven eviction (recency × referenced-later ×
-  length × state-entailment) for stale-but-unique turns
-- 🔲 **Fidelity fallback** — deterministic quality-signal detection → replay the
-  uncompressed view for a recovery turn
+- 🔲 ~~**Semantic contraction** — merge near-duplicate *facts* (embedding similarity,
+  same-agent namespace, negation guard) beyond structural dedup~~ ✅ **shipped (Tier 2)**
+- 🔲 ~~**Importance eviction** — policy-driven eviction (recency × referenced-later ×
+  length × state-entailment) for stale-but-unique turns~~ ✅ **shipped (Tier 2)**
+- 🔲 ~~**Fidelity fallback** — deterministic quality-signal detection → replay the
+  uncompressed view for a recovery turn~~ ✅ **shipped (Tier 2)**
 - 🔲 **Benchmark harness** — scripted multi-agent workflow, Lane A (raw Ollama) vs
   Lane B (ContextGC), measuring tokens/turn, TTFT, task-success parity
 - 🔲 **Dashboard** — split-screen race mode, prompt diff viewer, live gauges

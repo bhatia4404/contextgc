@@ -48,6 +48,19 @@ class Settings(BaseSettings):
     state_enabled: bool = True
     state_max_completed: int = 5          # rolling completed-actions list cap
 
+    # --- Tier 2 / Milestone 2.1: semantic contraction ---
+    semantic_enabled: bool = True
+    semantic_threshold: float = 0.85     # cosine merge threshold (plan v2)
+
+    # --- Tier 2 / Milestone 2.2: importance eviction (pressure-triggered) ---
+    evict_enabled: bool = True
+    evict_token_budget: int = 6000       # inert below this estimate; evict above
+    evict_keep_recent: int = 4           # freshness floor (never evict these)
+
+    # --- Tier 2 / Milestone 2.3: fidelity fallback (deterministic rule engine) ---
+    fidelity_enabled: bool = True
+    fidelity_loop_threshold: int = 3     # repeats needed to declare a loop
+
     # --- Milestone 1.8: telemetry bus / VRAM sampling ---
     telemetry_vram_enabled: bool = True    # sampler loop during lifespan
     telemetry_vram_interval_s: float = 3.0  # sampler poll period
