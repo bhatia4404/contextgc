@@ -50,10 +50,12 @@ def test_repetition_loop_triggers_raw_passthrough():
     out, report = _run(payload)
     assert report["fidelity_fallback"]["triggered"] is True
     assert any("repetition_loop" in s for s in report["fidelity_fallback"]["signals"])
-    # recovery turn == byte-identical RAW passthrough (no GC applied)
-    assert out == raw
-    assert report["pipeline"]["stages"] == ["fidelity_fallback"]
-    assert report["pipeline"]["modified"] is False
+    # Recovery keeps the raw message view but still receives runtime settings.
+    forwarded = json.loads(out)
+    assert forwarded["messages"] == payload["messages"]
+    assert forwarded["options"]["num_ctx"] >= 2048
+    assert report["pipeline"]["stages"] == ["fidelity_fallback", "numctx_negotiation"]
+    assert report["pipeline"]["modified"] is True  # runtime settings are injected
 
 
 # --- 2.3-B: tool-call loop ---
@@ -125,7 +127,9 @@ def test_fallback_sees_raw_history():
     dup = {"role": "assistant", "content": "identical turn repeated as loop evidence"}
     payload = _payload(*([dup] * 3), {"role": "user", "content": "please continue"})
     out, report = _run(payload)
-    assert out == json.dumps(payload).encode()          # raw, not deduped
+    forwarded = json.loads(out)
+    assert forwarded["messages"] == payload["messages"]  # raw, not deduped
+    assert forwarded["options"]["num_ctx"] >= 2048
     assert "stage1_dedup" not in report["pipeline"]["stages"]
 
 

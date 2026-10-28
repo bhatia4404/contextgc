@@ -122,7 +122,8 @@ def test_only_declared_pointer_refs_restored(stage_env, tmp_path):
     decoy = {"role": "tool", "name": "bash", "tool_call_id": "99",
              "content": "[Tool Output Ref #99 — decoy]\nKey result: none\n]"}
     p["messages"].append(decoy)               # placeholder shift: pointer msg + decoy
-    p["messages"][2]["content"] = f"compare Ref #{ref} with Ref #99"
+    # Only the active/latest assistant message is a reinjection request.
+    p["messages"][1]["content"] = f"compare Ref #{ref} with Ref #99"
     out, report = process_payload("/api/chat", json.dumps(p).encode(), run_id="seedrun")
     ri = report["ref_reinject"]
     assert set(ri["mentioned"]) == {ref, 99}

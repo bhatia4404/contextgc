@@ -47,6 +47,14 @@ def fresh_store_for_tests(tmp_path, monkeypatch):
     monkeypatch.setattr(
         store_mod, "get_store", lambda: store_mod.Store(str(tmp_path / "proxy-test.db"))
     )
+    from app.core import anchored_state, num_ctx, run_state
+    num_ctx.reset_state()
+    run_state.reset()
+    anchored_state.reset_state()  # per-run anchor state must not leak across tests
+    yield
+    num_ctx.reset_state()
+    run_state.reset()
+    anchored_state.reset_state()
 
 
 @pytest.fixture

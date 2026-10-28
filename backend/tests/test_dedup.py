@@ -80,17 +80,15 @@ def test_contradiction_not_removed():
 
 
 # 1.4-D: same run, same boilerplate in the NEXT request -> removed there too
-def test_cross_request_same_run_dedup():
+def test_cross_request_history_is_preserved():
     boiler = {"role": "assistant", "content": "Updated the todo list. Next: run the test suite."}
     p1 = {"messages": [{"role": "user", "content": "go"}, boiler]}
     p2 = {"messages": [{"role": "user", "content": "go"}, boiler, boiler]}
     _, rep1 = process_payload("/api/chat", _as_bytes(p1), run_id="same-run")
     _, rep2 = process_payload("/api/chat", _as_bytes(p2), run_id="same-run")
-    # both 'go' and the first boiler are duplicates of turn-1 history; only the
-    # LAST message (freshest copy) survives the freshness rule:
-    removed_indexes = [r["index"] for r in rep2["stage1_dedup"]["removed"]]
-    assert removed_indexes == [0, 1]
-    assert rep2["stage1_dedup"]["messages_after"] == 1
+    # A resent history is valid state, not cross-request duplication.
+    assert not rep2.get("stage1_dedup")
+    assert rep1.get("stage1_dedup") is None
 
 
 # 1.4-E: procedural system + semantic messages never removed even when dup'd
@@ -119,7 +117,7 @@ def test_tool_envelopes_and_last_stay():
     from tests.helpers import messages as msgs_of
     fwd = msgs_of(out)  # anchor pin shifts indices; assert by role/shape, not position
     kept = [m for m in fwd if m.get("role") in ("assistant", "user") or m.get("tool_calls")]
-    assert len(fwd) == 3          # envelope + last message + the 1.6 anchor pin
+    assert len(fwd) == 2          # envelope + last message (empty anchor is skipped)
     assert "stage1_dedup" not in report or not report["stage1_dedup"]
 
 
@@ -165,10 +163,10 @@ def test_proxy_dedup_end_to_end(app_client, settings_factory):
     assert r.status_code == 200
     from tests.helpers import messages as msgs_of
     forwarded = msgs_of(calls[0]["content"])
-    assert len(forwarded) == 4  # anchor pin + 3 messages (shrunk from 4 raw)
-    # store records the *original* (3 message) alongside the cleaned (2) copy
+    assert len(forwarded) == 3  # duplicate removed; no anchor because no state fields exist
+    # store records the original alongside the cleaned view
     import app.core.store as store_mod
     st = store_mod.get_store()
     last = st.recent(n=1)[0]
     assert len(json.loads(st.get_raw(last["turn_id"]))["messages"]) == 4
-    assert len(json.loads(st.get_clean(last["turn_id"]))["messages"]) == 4
+    assert len(json.loads(st.get_clean(last["turn_id"]))["messages"]) == 3

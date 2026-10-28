@@ -87,6 +87,12 @@ def evictables(messages: list, annotations: dict[int, dict]) -> list[int]:
     """
     settings = config.get_settings()
     protected: set[int] = {len(messages) - 1}          # live turn
+    # The latest user instruction is the control signal for the next action;
+    # short instructions must never be sacrificed to save tokens.
+    latest_user = next((i for i in range(len(messages) - 1, -1, -1)
+                        if isinstance(messages[i], dict) and messages[i].get("role") == "user"), None)
+    if latest_user is not None:
+        protected.add(latest_user)
     for i, msg in enumerate(messages):
         if not isinstance(msg, dict):
             protected.add(i)
@@ -112,13 +118,77 @@ def _align_annotations(report: dict, messages: list) -> dict[int, dict]:
     Detected self-descriptively (anchor marker at index 0), no coupling to
     pipeline internals.
     """
-    annotations = {int(a.get("index", -1)): a for a in report.get("annotations", [])}
-    if not annotations:
-        return annotations
-    first = messages[0] if messages else None
-    if isinstance(first, dict) and _ANCHOR_MARKER in _text_of(first):
-        return {k + 1: v for k, v in annotations.items()}
-    return annotations
+    return {
+        i: report.get("_annotations_by_object", {}).get(str(id(msg)), {})
+        for i, msg in enumerate(messages)
+    }
+
+
+def _tool_groups(messages: list, candidates: list[int]) -> list[list[int]]:
+    """Return eviction units, keeping turns and tool exchanges together."""
+    call_to_idx: dict[str, int] = {}
+    for i, msg in enumerate(messages):
+        if not isinstance(msg, dict):
+            continue
+        for call in msg.get("tool_calls") or []:
+            if isinstance(call, dict):
+                call_id = call.get("id") or call.get("tool_call_id")
+                if call_id:
+                    call_to_idx[str(call_id)] = i
+    candidate_set = set(candidates)
+    groups: dict[int, list[int]] = {}
+    for i in candidates:
+        msg = messages[i] if isinstance(messages[i], dict) else {}
+        parent = call_to_idx.get(str(msg.get("tool_call_id")))
+        root = parent if parent is not None else i
+        groups.setdefault(root, []).append(i)
+    # Include the call envelope whenever a result is considered.
+    for root, members in list(groups.items()):
+        if root not in members:
+            if root in candidate_set:
+                members.append(root)
+            else:
+                del groups[root]
+
+    # Add the user instruction to a tool-bearing assistant group as well. This
+    # keeps "user -> assistant tool call -> tool result" atomic, not merely the
+    # assistant/result sub-pair.
+    for members in groups.values():
+        assistants = [i for i in members
+                      if isinstance(messages[i], dict) and messages[i].get("role") == "assistant"]
+        for assistant in assistants:
+            user = assistant - 1
+            if (user in candidate_set and isinstance(messages[user], dict)
+                    and messages[user].get("role") == "user"):
+                members.append(user)
+
+    # User instructions and their immediate assistant reply form one unit.
+    # If either side is protected, neither side is eligible.
+    paired: list[list[int]] = []
+    consumed: set[int] = set()
+    for group in groups.values():
+        group = sorted(set(group))
+        if len(group) == 1:
+            i = group[0]
+            if (messages[i].get("role") == "user" and i + 1 < len(messages)
+                    and isinstance(messages[i + 1], dict)
+                    and messages[i + 1].get("role") == "assistant"):
+                if i + 1 in candidate_set:
+                    group = [i, i + 1]
+                else:
+                    continue
+            elif (messages[i].get("role") == "assistant" and i > 0
+                  and isinstance(messages[i - 1], dict)
+                  and messages[i - 1].get("role") == "user"):
+                if i - 1 in candidate_set:
+                    group = [i - 1, i]
+                else:
+                    continue
+        if any(i in consumed for i in group):
+            continue
+        consumed.update(group)
+        paired.append(group)
+    return paired
 
 
 def run_evict(payload: dict, report: dict, run_id: str = "default") -> bool:
@@ -130,31 +200,59 @@ def run_evict(payload: dict, report: dict, run_id: str = "default") -> bool:
 
     annotations = _align_annotations(report, messages)
     est = num_ctx_mod.estimate_tokens(payload)
-    stage = report.setdefault("importance_eviction", {"budget": settings.evict_token_budget})
-    if est <= settings.evict_token_budget:
+    compaction_budget = report.get("compaction_budget")
+    if compaction_budget:
+        # The compaction target applies to HISTORY. The live turn (often a
+        # fresh raw tool dump) is protected and must not eat the history
+        # allowance, or compaction strips the whole recent conversation.
+        live = num_ctx_mod.estimate_tokens({"messages": messages[-1:]})
+        window = int(report.get("compaction_window") or 0)
+        min_history = int(window * 0.15)
+        budget = max(int(compaction_budget), live + min_history)
+        if window:
+            # leave >= 25% of the window free below the trigger, so the next
+            # epoch is several turns away rather than one dump away
+            budget = min(budget, int(window * (settings.compaction_trigger - 0.25)))
+            budget = max(budget, live)
+    else:
+        budget = settings.evict_token_budget
+    stage = report.setdefault("importance_eviction", {"budget": budget})
+    stage["budget"] = budget
+    if est <= budget:
         stage["triggered"] = False
         return False                                    # inert unless under pressure
 
     cand = evictables(messages, annotations)
-    # least important first: (importance, index) ascending
-    scored = sorted(cand, key=lambda i: (importance(messages, i, annotations), i))
-    target_save = est - settings.evict_token_budget
+    groups = _tool_groups(messages, cand)
+    if compaction_budget:
+        # Compaction drops the oldest turns first: one contiguous cut keeps
+        # the recent conversation coherent for the next epoch.
+        scored = sorted(groups, key=min)
+    else:
+        # least important first; a tool call/result group is one atomic unit.
+        scored = sorted(
+            groups,
+            key=lambda g: (min(importance(messages, i, annotations) for i in g if i < len(messages)), min(g)),
+        )
+    target_save = est - budget
     evicted: list[dict] = []          # frozen BEFORE mutation (indexes stay valid)
     saved = 0
-    for i in scored:
+    for group in scored:
         if saved >= target_save:
             break
-        t = _text_of(messages[i])
-        imp = importance(messages, i, annotations)
-        evicted.append({"index": i, "chars": len(t), "importance": round(imp, 3)})
-        saved += len(t) // 4 + 8                        # mirror of the estimator
+        group = sorted(set(i for i in group if 0 <= i < len(messages)))
+        chars = sum(len(_text_of(messages[i])) for i in group)
+        imp = min(importance(messages, i, annotations) for i in group)
+        evicted.append({"indexes": group, "index": group[0],
+                        "chars": chars, "importance": round(imp, 3)})
+        saved += sum(len(_text_of(messages[i])) // 4 + 8 for i in group)
 
     if not evicted:
         stage["triggered"] = False
         stage["note"] = "under pressure but nothing evictable (all protected)"
         return False
 
-    evict_set = {d["index"] for d in evicted}
+    evict_set = {i for d in evicted for i in d["indexes"]}
     payload["messages"] = [
         m for i, m in enumerate(messages) if i not in evict_set
     ]

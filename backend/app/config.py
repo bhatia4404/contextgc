@@ -31,12 +31,18 @@ class Settings(BaseSettings):
     gc_stage1_enabled: bool = True
     gc_stage1_threshold: float = 0.92
 
-    # --- Milestone 1.7: dynamic num_ctx negotiation ---
+    # --- v3: fixed per-run context window ---
     numctx_enabled: bool = True
-    numctx_headroom: float = 1.25     # chosen window = 1.25 x estimated tokens
-    numctx_min: int = 2048            # Ollama's historic tiny default — never below
-    numctx_max: int = 32768           # VRAM guardrail
-    numctx_v1_mode: str = "auto"      # auto | report  (auto: inject top-level num_ctx on Ollama sinks only)
+    numctx_default: int = 8192        # pinned fallback until the capacity probe selects a tier
+    compaction_trigger: float = 0.70
+    compaction_target: float = 0.40
+    numctx_min: int = 2048            # smallest supported tier
+    numctx_max: int = 32768           # largest supported tier
+    numctx_v1_mode: str = "auto"      # auto | report (Ollama /v1 only)
+    keep_alive: str = "30m"
+    num_parallel: int = 1
+    run_state_ttl_s: float = 3600.0
+    run_state_max: int = 256
 
     # --- Milestone 1.5: pointer-based tool offload ---
     offload_enabled: bool = True
@@ -60,12 +66,12 @@ class Settings(BaseSettings):
     # --- Tier 2 / Milestone 2.3: fidelity fallback (deterministic rule engine) ---
     fidelity_enabled: bool = True
     fidelity_loop_threshold: int = 3     # repeats needed to declare a loop
+    fidelity_recent_messages: int = 8
 
     # --- Milestone 1.8: telemetry bus / VRAM sampling ---
     telemetry_vram_enabled: bool = True    # sampler loop during lifespan
     telemetry_vram_interval_s: float = 3.0  # sampler poll period
-    kv_bytes_per_token: int = 114_688      # llama3.2:3b KV/token (28L, 8 kvH,
-                                           # 128 hd, fp16 K+V) — CPU-only gauge
+    kv_bytes_per_token: int = 114_688      # fallback gauge only; probe replaces this per model
 
     # --- Proxy behavior ---
     proxy_host: str = "0.0.0.0"

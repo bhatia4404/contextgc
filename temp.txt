@@ -1,0 +1,8 @@
+Project sequence (final)
+Order	Work	Status
+1	Tier 1 (1.1–1.8)	✅ Done — committed a857f06
+2	Tier 2: 2.1 semantic contraction → 2.2 importance eviction → 2.3 fidelity fallback	▶️ Next
+3	Phase 2: benchmark harness — minimal first (CrewAI chat-only, Lane A/B, success-parity checks 2.4), then real tools	🔲
+4	Phase 2.0: sandbox modes (Mode R reproducible OOM, Mode V VRAM telemetry, Mode M GPU tiers)	🔲
+5	Phase 3: dashboard (split-screen race, diff viewer, gauges)	🔲
+6	Tier 3 — very last (delta offload, content-addressed refs, multi-model switching, polish)	🔲

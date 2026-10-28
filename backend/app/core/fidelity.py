@@ -65,6 +65,9 @@ def detect(payload: dict) -> list[str]:
     if not isinstance(messages, list):
         return []
     signals: list[str] = []
+    # Repetition in ancient history is not evidence that the active turn is
+    # looping. Limit detection to the recent reasoning window.
+    messages = messages[-settings.fidelity_recent_messages:]
     threshold = settings.fidelity_loop_threshold
 
     # 1) identical assistant content repeated

@@ -17,6 +17,7 @@ import shutil
 import subprocess
 import threading
 import time
+import os
 
 # Source detection is done once (changes under the app's feet are rare);
 # guarded so concurrent first calls can't race.
@@ -101,4 +102,12 @@ def sample() -> dict:
         event.update({"error": str(exc), "source": "none"})
     except Exception as exc:
         event["error"] = f"{type(exc).__name__}: {exc}"
+    override = os.getenv("CONTEXTGC_VRAM_OVERRIDE_MB")
+    if override:
+        try:
+            event["vram_total_mb"] = int(override)
+            event["vram_used_mb"] = min(event.get("vram_used_mb") or 0, int(override))
+            event["override"] = True
+        except ValueError:
+            event["override_error"] = "CONTEXTGC_VRAM_OVERRIDE_MB must be an integer"
     return event

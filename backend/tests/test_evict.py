@@ -112,7 +112,8 @@ def test_protections_never_evicted():
 def test_anchor_pin_survives():
     from app.core.anchored_state import _ANCHOR_MARKER
     msgs = [*_filler("bulk", n_turns=6),
-            {"role": "user", "content": "last user turn before the anchor pin check"}]
+            # a stated goal gives the anchor content (empty anchors are skipped)
+            {"role": "user", "content": "remember the goal: keep the anchor pin through eviction"}]
     # run with anchor ON so it inserts its own pin; eviction must skip it
     out, report = _run(_payload(*msgs), evict_token_budget=800, state_enabled=True)
     out_msgs = json.loads(out)["messages"]

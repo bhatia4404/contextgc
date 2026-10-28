@@ -1,32 +1,26 @@
-"""Dynamic num_ctx negotiation (Milestone 1.7 — plan v2, Iteration-1/L2 fix).
+"""Context-window estimation and v3 fixed-per-run pinning.
 
-Ollama sizes the KV cache from the `num_ctx` SETTING, not from the actual
-prompt length — so message pruning alone saves tokens/latency/accuracy but
-NO VRAM. This stage closes the loop: it estimates the cleaned payload's
-token count and right-sizes the request's context window:
-
-    chosen = clamp(ceil(est_tokens * headroom), floor, cap)
-             rounded UP to a 1024 multiple (deterministic gauges)
-
-Injection matrix (verified against Ollama behavior, Iteration-11 search):
-  /api/chat  (native)  -> options.num_ctx            [always honored]
-  /v1/chat/completions -> top-level num_ctx          [honored on merged-PR builds;
-      only injected when sink is Ollama (`auto` mode); cloud sinks
-      (Baseten/Fireworks/Modal) get report-only so no extra keys leak]
-  client explicitly set num_ctx/options.num_ctx -> RESPECTED (not overridden)
+Ollama sizes the KV cache from ``num_ctx`` at model-load time.  Changing it on
+every request reloads the model and destroys the prompt-prefix cache, so the
+proxy now pins one value for the lifetime of a run.  A future machine-capacity
+probe can supply the tier; this module remains the deterministic policy layer.
 """
 from __future__ import annotations
 
+import json
 import math
+import threading
 from typing import Any
 
 from app import config
 
-_CHARS_PER_TOKEN = 4        # calibrated against llama family tokenizers
+_CHARS_PER_TOKEN = 4
+_RUN_WINDOWS: dict[str, int] = {}
+_LOWERED: set[str] = set()   # runs that already took their one residency step-down
+_LOCK = threading.Lock()
 
 
 def estimate_tokens(payload: dict) -> int:
-    """Cheap deterministic estimator; no model call in the hot path."""
     total = 0
     messages = payload.get("messages")
     if isinstance(messages, list):
@@ -35,14 +29,11 @@ def estimate_tokens(payload: dict) -> int:
                 continue
             content = msg.get("content")
             text = content if isinstance(content, str) else json_dumps(content)
-            total += len(text) // _CHARS_PER_TOKEN + 8   # role/frame overhead
-
+            total += len(text) // _CHARS_PER_TOKEN + 8
     tools = payload.get("tools")
     if isinstance(tools, list):
-        # tool schemas are JSON-heavy; ~2.5 chars/token when minified
         total += len(json_dumps(tools)) // 3
-
-    for k in ("system", "prompt"):  # /api/generate compat
+    for k in ("system", "prompt"):
         v = payload.get(k)
         if isinstance(v, str):
             total += len(v) // _CHARS_PER_TOKEN + 8
@@ -50,57 +41,118 @@ def estimate_tokens(payload: dict) -> int:
 
 
 def json_dumps(obj: Any) -> str:
-    import json
     return json.dumps(obj, ensure_ascii=False, default=str)
 
 
+def _round_down_tier(x: int) -> int:
+    tiers = (4096, 8192, 16384, 32768)
+    return max((tier for tier in tiers if tier <= x), default=2048)
+
+
 def _round_up_to(x: int, base: int = 1024) -> int:
+    """Compatibility helper for estimator/benchmark callers."""
     return int(math.ceil(x / base)) * base
 
 
-def negotiate(payload: dict, report: dict, endpoint_family: str) -> bool:
-    """Set num_ctx on the payload per the matrix. Returns True if modified."""
+def reset_state() -> None:
+    with _LOCK:
+        _RUN_WINDOWS.clear()
+        _LOWERED.clear()
+
+
+def pinned_window(run_id: str) -> int | None:
+    with _LOCK:
+        return _RUN_WINDOWS.get(run_id)
+
+
+def forget_run(run_id: str) -> None:
+    with _LOCK:
+        _RUN_WINDOWS.pop(run_id, None)
+        _LOWERED.discard(run_id)
+
+
+def lower_window(run_id: str) -> int | None:
+    """Drop one tier after a post-load residency check detects CPU spill.
+
+    At most once per run: every change is a model reload, so a run never
+    walks down the tiers turn after turn.
+    """
+    with _LOCK:
+        current = _RUN_WINDOWS.get(run_id)
+        if current is None:
+            return None
+        if run_id in _LOWERED:
+            return current
+        tiers = (2048, 4096, 8192, 16384, 32768)
+        lower = [tier for tier in tiers if tier < current]
+        if lower:
+            _RUN_WINDOWS[run_id] = max(lower)
+        _LOWERED.add(run_id)
+        return _RUN_WINDOWS[run_id]
+
+
+def _choose_initial_window(settings: config.Settings, estimated: int) -> int:
+    # ``numctx_default`` is the safe fallback until the machine probe selects
+    # a tier. It is deliberately independent of the current prompt size.
+    default = max(settings.numctx_min, min(settings.numctx_default, settings.numctx_max))
+    return _round_down_tier(default) if default >= 4096 else settings.numctx_min
+
+
+def negotiate(payload: dict, report: dict, endpoint_family: str, run_id: str = "default") -> bool:
+    """Inject one stable context window for a run; never resize per turn."""
     settings = config.get_settings()
     est = estimate_tokens(payload)
-    chosen = min(
-        max(
-            _round_up_to(int(math.ceil(est * settings.numctx_headroom) / 1) or 1,
-                         base=1024),
-            settings.numctx_min,
-        ),
-        settings.numctx_max,
-    )
+    existing_client = None
+    if endpoint_family == "api":
+        options = payload.get("options")
+        if isinstance(options, dict) and options.get("num_ctx"):
+            existing_client = int(options["num_ctx"])
+    elif endpoint_family == "v1":
+        if payload.get("num_ctx"):
+            existing_client = int(payload["num_ctx"])
+
+    with _LOCK:
+        chosen = _RUN_WINDOWS.get(run_id)
+    capacity_details = None
+    if chosen is None:
+        if existing_client:
+            candidate = existing_client
+        else:
+            from app.core.capacity import choose_window
+            candidate, capacity_details = choose_window(
+                payload.get("model"), settings.numctx_default,
+                settings.numctx_min, settings.numctx_max,
+            )
+        candidate = max(settings.numctx_min, min(candidate, settings.numctx_max))
+        with _LOCK:
+            chosen = _RUN_WINDOWS.setdefault(run_id, candidate)
+
     neg = report.setdefault("numctx_negotiation", {})
     neg.update({
         "estimated_tokens": est,
         "chosen_num_ctx": chosen,
-        "headroom": settings.numctx_headroom,
-        "floor": settings.numctx_min,
-        "cap": settings.numctx_max,
+        "pinned": True,
+        "run_id": run_id,
+        "client_num_ctx": existing_client,
     })
+    if capacity_details is not None:
+        neg["capacity_probe"] = capacity_details
+    if existing_client is not None:
+        neg["respected_client"] = existing_client == chosen
+        if existing_client != chosen:
+            neg["client_num_ctx_overridden"] = True
 
-    if endpoint_family == "api":  # native /api/chat
-        options = payload.get("options")
-        if isinstance(options, dict) and options.get("num_ctx"):
-            neg["respected_client"] = True; neg["client_num_ctx"] = options["num_ctx"]
-            return False
-        payload.setdefault("options", {})["num_ctx"] = chosen
+    if endpoint_family == "api":
+        options = payload.setdefault("options", {})
+        changed = options.get("num_ctx") != chosen
+        options["num_ctx"] = chosen
         neg["injected_where"] = "options.num_ctx"
-        return True
-
-    # OpenAI-compat /v1: only for Ollama sinks; never leak extras to cloud sinks
+        return changed
     if settings.sink_is_ollama and settings.numctx_v1_mode == "auto":
-        existing = payload.get("num_ctx")
-        if existing:
-            neg["respected_client"] = True; neg["client_num_ctx"] = existing
-            return False
+        changed = payload.get("num_ctx") != chosen
         payload["num_ctx"] = chosen
         neg["injected_where"] = "top_level"
-        return True
-
+        return changed
     neg["injected_where"] = "report_only"
-    neg["report_only_reason"] = (
-        "OpenAI-compat endpoint used with a non-sync sink "
-        "(or numctx_v1_mode=report); benchmark should rely on native lane"
-    )
+    neg["report_only_reason"] = "OpenAI-compatible non-Ollama sink"
     return False

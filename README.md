@@ -2,32 +2,30 @@
 
 **by ZeroSpike**
 
-> A drop-in, local-first middleware that **garbage-collects agent context in real time**.
+> A drop-in, local-first middleware that keeps long agent runs inside a fixed,
+> machine-sized context window while preserving the model's prompt-prefix cache.
 > Point your CrewAI / AutoGen / LangChain `base_url` at it and your local agents use fewer
 > tokens, stay accurate, and stop breaking on long runs — a live telemetry feed shows the
 > cleaning happening message by message.
 
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![FastAPI](https://img.shields.io/badge/FastAPI-proxy-009688)
-![Tests](https://img.shields.io/badge/tests-64%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-97%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-—-lightgrey)
 
 ---
 
 ## The problem
 
-Local multi-agent loops (researcher → coder → reviewer) are **stateless from the model's
-perspective**: the framework rebuilds the *complete* message history and re-uploads it on
-every single turn — including 300-line tool dumps that were only relevant once, and often
-*duplicated copies of other agents' entire histories*. Four real, reproducible failures:
+Local multi-agent loops (researcher → coder → reviewer) often resend growing histories
+and tool outputs. Four real, reproducible failures are:
 
-1. **Silent truncation** — Ollama's `num_ctx` (commonly 2048/4096 by default) silently
-   drops the *oldest* messages — including your system prompt — mid-task, without warning.
+1. **Silent truncation or context errors** — when history exceeds usable `num_ctx`,
+   older task state may be lost or the runtime may reject the request.
 2. **Context rot / accuracy collapse** — duplicated and stale turns degrade small-model
    (3B-class) reasoning even *inside* the context window.
-3. **Latency blow-up** — prefill cost grows with every turn of the loop.
-4. **VRAM pressure** — the KV cache is sized to the `num_ctx` *setting*, not the actual
-   prompt, so it stays pinned high even when the prompt is small.
+3. **Long-run latency** — prompt rewrites, reloads, or cache misses make tool loops costly.
+4. **KV-cache pressure** — an unnecessarily large `num_ctx` can push a model off the GPU.
 
 Conventional fixes are cloud APIs, framework rewrites, or memory stores.
 **ContextGC is none of those** — it's a transparent HTTP proxy between the framework you
@@ -46,22 +44,22 @@ CrewAI / AutoGen / LangChain app
 │  • Dual passthrough: /v1/chat/completions + /api/chat       │
 │  • Full SSE streaming, byte-faithful when GC is off         │
 │  • Append-only store: originals are NEVER lost              │
-│  • Cross-request state (MinHash LRU, caches)                │
+│  • Per-run state (prefix baseline, pinned window, caches)   │
 ├─────────────────────────────────────────────────────────────┤
 │ Request-time GC pipeline                                    │
 │  S0  Memory classifier (procedural=lock, semantic, episodic) │
-│  S1  MinHash/LSH structural dedup (cross-agent aware)       │
+│  S1  Request-local MinHash/LSH structural dedup             │
 │  S2  Pointer offload of dump-sized tool results → disk      │
 │  S2b On-demand re-injection when an agent asks for a ref    │
 │  S2c Semantic contraction: embedding merge of rephrased     │
 │      facts (same-namespace + negation guard)                │
-│  S3  Anchored 4-key state block pinned to window top        │
+│  S3  Anchored 4-key state suffix at compaction boundaries   │
 │  S2d Importance eviction under window pressure (recency ×   │
 │      length; live turn, system prompts, state pin,          │
 │      referenced-later and standing facts hard-protected)    │
 │  S5  Fidelity fallback: loop/confusion rule engine serves   │
 │      a recovery turn from the raw view                      │
-│  S4  Dynamic num_ctx negotiation (≈1.25× actual tokens)     │
+│  S4  Machine-aware fixed num_ctx pinned per run              │
 ├─────────────────────────────────────────────────────────────┤
 │ Telemetry bus: per-turn tokens, TTFT, per-stage savings,    │
 │ VRAM (pynvml → nvidia-smi → Ollama /api/ps → CPU KV gauge)  │
@@ -72,9 +70,9 @@ CrewAI / AutoGen / LangChain app
 
 The causal chain for memory savings:
 
-**clean payload → smaller token estimate → smaller negotiated `num_ctx` → smaller KV
-cache → flat VRAM.** Prompt cleaning alone saves *zero* VRAM — the window negotiation
-(S4) is what turns token savings into memory savings.
+**machine capacity → fixed safe `num_ctx` → stable KV cache.** Prompt cleaning keeps
+the task inside that window; it does not by itself reduce VRAM. Compaction is an
+occasional epoch boundary, not a per-turn rewrite.
 
 ---
 
@@ -121,11 +119,11 @@ That's it. Framework code stays untouched.
 | Stage | What it does | Mechanism |
 |---|---|---|
 | **S0 — Memory classifier** | Categorizes every message so we only GC what's safe | Rule-based (no LLM): role/shape/markers/length → `procedural` (immovable), `semantic`, `episodic` |
-| **S1 — Structural dedup** | Strips identical repeated turns across agents & requests | MinHash/LSH over content, agent-namespaced, similarity threshold |
+| **S1 — Structural dedup** | Removes safe duplicates within the current payload | Request-local MinHash/LSH; prior requests are never deletion evidence |
 | **S2 — Pointer offload** | Frees the window from dump-sized tool results | Result → disk scratchpad, prompt keeps `[Tool Output Ref #n …  Key result: …]`; freshest N stay raw |
 | **S2b — On-demand re-injection** | Restores accuracy when the agent asks for a ref | "Ref #12"-mention detection → full original restored for exactly that turn |
-| **S3 — Anchored state** | Prevents task drift on long runs | Rolling 4-key JSON block (`user_intent` / `completed_actions` / `active_blocker` / `next_step`) pinned to the top of the window |
-| **S4 — num_ctx negotiation** | Turns token savings into VRAM savings | Estimated tokens × 1.25 → window size (rounded to 1024, floor 2048, cap 32768); client-set windows are always respected |
+| **S3 — Anchored state** | Prevents task drift on long runs | Four-key state suffix refreshed at compaction boundaries |
+| **S4 — fixed num_ctx** | Keeps KV allocation stable | One machine-sized tier is pinned for the run; no per-turn reloads |
 
 Pipeline order matters: classify → dedup → offload → re-inject check → anchor → num_ctx
 (the window is sized to the *post-cleaning* payload).
@@ -180,7 +178,10 @@ swapped with zero code changes:
 | `CONTEXTGC_OFFLOAD_ENABLED` | `true` | pointer offload |
 | `CONTEXTGC_OFFLOAD_THRESHOLD_TOKENS` | `800` | dump-size threshold |
 | `CONTEXTGC_STATE_ENABLED` | `true` | anchored state block |
-| `CONTEXTGC_NUMCTX_ENABLED` | `true` | dynamic window negotiation |
+| `CONTEXTGC_NUMCTX_ENABLED` | `true` | fixed per-run window injection |
+| `CONTEXTGC_NUMCTX_DEFAULT` | `8192` | fallback fixed context tier per run |
+| `CONTEXTGC_KEEP_ALIVE` | `30m` | keep the Ollama model resident between turns |
+| `CONTEXTGC_VRAM_OVERRIDE_MB` | unset | simulate a GPU capacity for benchmarks |
 | `CONTEXTGC_TELEMETRY_VRAM_ENABLED` | `true` | background VRAM sampler |
 | `CONTEXTGC_TELEMETRY_VRAM_INTERVAL_S` | `3.0` | sampler poll period |
 | `CONTEXTGC_PROXY_PORT` | `11400` | proxy listen port |
@@ -190,6 +191,13 @@ swapped with zero code changes:
 ## Repository layout
 
 ```
+crewai_agent/                 # standalone CrewAI customer application
+  code_maintenance_agent.py  # Agent 1: fixes an existing repository
+  incident_response_agent.py # Agent 2: investigates a production incident
+demo_repository/              # separate existing customer repository
+  src/opsdesk/                # production-style incident service
+  tests/                      # deterministic repository checks
+  data/incidents/             # incident logs used by Agent 2
 backend/
   app/main.py            # proxy shell, routing, streaming forward, telemetry wiring
   app/config.py          # env-driven settings
@@ -198,9 +206,9 @@ backend/
     hash_filter.py       # S1 MinHash/LSH dedup
     offload.py           # S2 pointer offload + re-injection
     anchored_state.py    # S3 anchored state block
-    num_ctx.py           # S4 dynamic window negotiation
+    num_ctx.py           # S4 fixed per-run window pinning
     store.py             # append-only SQLite store (originals never lost)
-    caches.py            # cross-request LRU caches
+    caches.py            # bounded process caches
     gc.py                # pipeline orchestrator
     telemetry.py         # ring buffer + WS bus + per-turn event builder
     vram.py              # VRAM sampler (pynvml → nvidia-smi → graceful none)
@@ -217,19 +225,19 @@ cd backend
 python -m pytest tests -q
 ```
 
-64 passing. The acceptance suite runs against a **mock sink**, so no Ollama or GPU is
+97 passing. The acceptance suite runs against a **mock sink**, so no Ollama or GPU is
 required. It covers: byte-faithful passthrough (OpenAI + native + SSE streaming), the
 store, the classifier, dedup, offload & re-injection, anchored state, num_ctx
-negotiation, and the telemetry bus.
+pinning, and the telemetry bus.
 
 ---
 
 ## Status & roadmap
 
-Shipped — **full GC intelligence (Phase 1 complete, all three tiers)**:
+Implemented foundation — **proxy, correctness safeguards, and v3 cache-safety work**:
 
 - **Tier 1 ✅** proxy + SSE passthrough · append-only store · memory classifier ·
-  dedup · pointer offload + re-injection · anchored state · dynamic num_ctx ·
+   request-local dedup · pointer offload + re-injection · tail state anchor · fixed per-run num_ctx ·
   telemetry bus
 - **Tier 2 ✅** semantic contraction (embedding merge, same-namespace + negation
   guard, never merges contradictions) · importance eviction (pressure-triggered,
@@ -237,13 +245,15 @@ Shipped — **full GC intelligence (Phase 1 complete, all three tiers)**:
   state pin, referenced-later turns and standing facts) · deterministic fidelity
   fallback (loop/confusion rule engine → recovery turn replays the raw view)
 
-**89 tests passing** (mock sink, no Ollama required).
+**97 tests passing** (mock sink, no Ollama required). Runtime capacity probing,
+incremental prefix views, and compaction epochs are implemented; hardware benchmark
+execution remains environment-dependent.
 
 ### Pipeline order
 
 `fidelity check (raw evidence) → S0 classify → S1 dedup → S2 offload →
 S2b re-inject → S4 semantic contraction → S3 anchored state → S5 importance
-eviction (pressure-triggered) → num_ctx negotiation`
+eviction (pressure-triggered) → incremental combine/compaction → fixed num_ctx`
 
 **Build in progress:**
 
@@ -253,12 +263,23 @@ eviction (pressure-triggered) → num_ctx negotiation`
   length × state-entailment) for stale-but-unique turns~~ ✅ **shipped (Tier 2)**
 - 🔲 ~~**Fidelity fallback** — deterministic quality-signal detection → replay the
   uncompressed view for a recovery turn~~ ✅ **shipped (Tier 2)**
-- 🔲 **Benchmark harness** — scripted multi-agent workflow, Lane A (raw Ollama) vs
-  Lane B (ContextGC), measuring tokens/turn, TTFT, task-success parity
+- ✅ **Benchmark harness** — records Ollama final-chunk timing/count fields and supports
+   fixed-reply replay for Lane A/B latency comparisons
 - 🔲 **Dashboard** — split-screen race mode, prompt diff viewer, live gauges
 
 Benchmark numbers are reported only when measured — this README deliberately contains
 no performance claims.
+
+### Context-window configuration
+
+ContextGC pins one context window per run. If a client supplies `num_ctx` on the
+first request, that value becomes the run's pinned value. A later client change is
+intentionally overridden and reported as `client_num_ctx_overridden`; restart the
+run with a new `x-contextgc-run` value to select a different window.
+
+The capacity probe uses VRAM telemetry, `/api/show` architecture metadata, and
+`/api/tags` model size. If any input is unavailable—especially on CPU-only systems—
+it falls back to `CONTEXTGC_NUMCTX_DEFAULT`.
 
 ---
 

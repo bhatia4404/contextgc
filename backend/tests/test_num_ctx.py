@@ -1,4 +1,4 @@
-"""Milestone 1.7 acceptance tests — dynamic num_ctx negotiation.
+"""v3 acceptance tests — fixed per-run num_ctx pinning.
 
 1.7-A native /api/chat: options.num_ctx injected per estimate, 1024-snapped
 1.7-B estimated tokens scale with payload size (floor respected)
@@ -38,7 +38,7 @@ def test_native_injection_and_floor(settings_factory):
     assert chosen >= s.numctx_min and chosen % ROUND == 0  # 1024-snapped
     # negotiation is sized to the CLEANED payload (dedup ran first — 1.7-F):
     assert neg["estimated_tokens"] == num_ctx.estimate_tokens(fwd)
-    assert len(fwd["messages"]) == 3  # anchor pin + 2 kept copies (first + freshest)
+    assert len(fwd["messages"]) == 1  # the freshest copy (newest wins; empty anchor skipped)
     assert fwd["options"]["num_ctx"] == chosen
     assert report["pipeline"]["modified"] is True
 
@@ -50,7 +50,7 @@ def test_estimate_scales_and_floor(settings_factory):
     e_small, e_big = num_ctx.estimate_tokens(small), num_ctx.estimate_tokens(big)
     assert e_small < 100 and e_big > 9000
     for e in (e_small, e_big):
-        chosen = min(max(num_ctx._round_up_to(int(e * s.numctx_headroom) or 1), s.numctx_min), s.numctx_max)
+        chosen = min(max(num_ctx._round_up_to(int(e) or 1), s.numctx_min), s.numctx_max)
         assert chosen % ROUND == 0 and chosen >= s.numctx_min
 
 
@@ -105,9 +105,21 @@ def test_negotiation_sizes_after_dedup(settings_factory):
     neg = report["numctx_negotiation"]
     # estimate must reflect the dedup'd set: count messages that actually went downstream
     fwd = json.loads(out)
-    assert len(fwd["messages"]) == dedup_after + 1      # + the anchor pin (1.6)
+    assert len(fwd["messages"]) == dedup_after          # no state fields -> no anchor pin
     assert len(fwd["messages"]) < len(payload["messages"]) + 2  # (+2 = anchor pin allowance)
     assert neg["estimated_tokens"] == num_ctx.estimate_tokens(fwd)  # sized to clean payload
+
+
+def test_window_is_identical_across_turns(settings_factory):
+    settings_factory(gc_enabled=True, numctx_default=16384)
+    first = {"messages": [{"role": "user", "content": "short"}]}
+    second = {"messages": [{"role": "user", "content": "short"},
+                            {"role": "assistant", "content": "x" * 30000}]}
+    out1, r1 = process_payload("/api/chat", json.dumps(first).encode(), run_id="fixed")
+    out2, r2 = process_payload("/api/chat", json.dumps(second).encode(), run_id="fixed")
+    assert r1["numctx_negotiation"]["chosen_num_ctx"] == 16384
+    assert r2["numctx_negotiation"]["chosen_num_ctx"] == 16384
+    assert json.loads(out1)["options"]["num_ctx"] == json.loads(out2)["options"]["num_ctx"]
 
 
 def test_gc_off_no_negotiation():

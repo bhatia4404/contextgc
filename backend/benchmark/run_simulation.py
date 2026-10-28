@@ -73,7 +73,9 @@ def estimate_tokens(payload: dict) -> int:
 async def run_lane(client: httpx.AsyncClient, base_url: str, n_turns: int,
                    model: str, telemetry_base: str | None = None,
                    run_id: str = "default", dumps_every: int = 4,
-                   stages_preset: str | None = None) -> list[dict]:
+                   stages_preset: str | None = None,
+                   replay: bool = False,
+                   request_num_ctx: int | None = None) -> list[dict]:
     """One lane: grows a real conversation history turn by turn.
 
     telemetry_base: for Lane B, the proxy base — after each turn we pull the
@@ -91,16 +93,20 @@ async def run_lane(client: httpx.AsyncClient, base_url: str, n_turns: int,
     for t, incoming in enumerate(script):
         history.append(incoming)
         payload = {"model": model, "messages": history, "stream": True}
+        if request_num_ctx:
+            payload["options"] = {"num_ctx": request_num_ctx}
         t0 = time.perf_counter()
         ttft = None
         chunks = 0
         reply_parts: list[str] = []
+        last_chunk: dict = {}
         transport_error = None
         try:
             req = client.build_request(
                 "POST", f"{base_url}/api/chat", json=payload,
                 headers={"content-type": "application/json",
                          "x-contextgc-run": run_id,
+                         **({"x-contextgc-replay": "true"} if replay else {}),
                          **({"x-contextgc-stages": stages_preset} if stages_preset else {})})
             resp = await client.send(req, stream=True)
             status = resp.status_code
@@ -122,6 +128,7 @@ async def run_lane(client: httpx.AsyncClient, base_url: str, n_turns: int,
                         continue
                     delta = ""
                     if isinstance(obj, dict):
+                        last_chunk = obj
                         delta = (obj.get("message") or {}).get("content") or ""
                     if delta:
                         reply_parts.append(delta)
@@ -149,7 +156,24 @@ async def run_lane(client: httpx.AsyncClient, base_url: str, n_turns: int,
             history.append({"role": "assistant", "content":
                             f"<<empty reply turn {t + 1}: {transport_error or 'no deltas parsed'}>>"})
         else:
-            history.append({"role": "assistant", "content": reply or "<<no reply>>"})
+            history.append({"role": "assistant", "content":
+                            "Replay reply: continue with the requested task." if replay
+                            else (reply or "<<no reply>>")})
+        if last_chunk:
+            metric["ollama"] = {
+                key: last_chunk.get(key)
+                for key in ("load_duration", "prompt_eval_count", "prompt_eval_duration",
+                            "eval_count", "eval_duration")
+                if key in last_chunk
+            }
+            load_ns = last_chunk.get("load_duration")
+            prompt_ns = last_chunk.get("prompt_eval_duration")
+            # Ollama reports nanoseconds; warm model bookkeeping is commonly
+            # single-digit milliseconds and must not be called a reload.
+            if load_ns is not None:
+                metric["reload"] = load_ns > 500_000_000
+            if prompt_ns is not None:
+                metric["prompt_cache_candidate"] = prompt_ns < 100_000_000
         # Lane B: pull what the proxy itself sent downstream this turn
         if telemetry_base:
             ev = await _pull_next_telemetry(client, telemetry_base, seen_event_ids)
@@ -197,6 +221,9 @@ def summarize(name: str, metrics: list[dict]) -> dict:
         m["proxy"]["tokens_saved"] for m in metrics
         if (m.get("proxy") or {}).get("tokens_saved")
     ]
+    ollama = [m.get("ollama", {}) for m in metrics]
+    prompt_eval = [x.get("prompt_eval_count") for x in ollama if x.get("prompt_eval_count") is not None]
+    prompt_dur = [x.get("prompt_eval_duration") for x in ollama if x.get("prompt_eval_duration") is not None]
     return {
         "lane": name,
         "turns": len(metrics),
@@ -208,6 +235,12 @@ def summarize(name: str, metrics: list[dict]) -> dict:
         "ttft_last_s": ttft[-1] if ttft else None,
         "latency_avg_s": round(sum(lat) / len(lat), 4) if lat else None,
         "errors": sum(1 for m in metrics if m["http_status"] != 200),
+        "reload_count": sum(1 for m in metrics if m.get("reload") is True),
+        "cache_hit_ratio": round(
+            sum(1 for m in metrics if m.get("prompt_cache_candidate") is True) / len(metrics), 4
+        ) if metrics else 0.0,
+        "prompt_eval_tokens": sum(prompt_eval),
+        "prompt_eval_duration_ns": sum(prompt_dur),
     }
 
 
@@ -231,23 +264,44 @@ async def run_session(client: httpx.AsyncClient, args: argparse.Namespace,
     a real lane effect from warm-up/churn drift (Iteration 13 item 2).
     """
     lane_desc = {
-        "a": ("A", "raw ollama", args.ollama_url, False, None),
-        "b": ("B", "contextgc", args.proxy_url, True, args.stages),
+        "a": ("A1", "raw ollama (large window)", args.ollama_url, False, None, args.a1_num_ctx),
+        "a1": ("A1", "raw ollama (large window)", args.ollama_url, False, None, args.a1_num_ctx),
+        "a2": ("A2", "raw ollama (small window)", args.ollama_url, False, None, args.a2_num_ctx),
+        "b": ("B", "contextgc (small window)", args.proxy_url, True, args.stages, args.b_num_ctx),
     }
     summaries = []
     lane_metrics: dict[str, list] = {}
     for lane in order:
-        key, label, url, with_telemetry, stages = lane_desc[lane]
+        key, label, url, with_telemetry, stages, window = lane_desc[lane]
         print(f"[harness] Lane {key} ({label}, {args.turns} turns) ...")
+        await _warmup(client, url, args.model, window, run_id,
+                      replay=args.replay, proxy=with_telemetry)
         m = await run_lane(client, url, args.turns, args.model,
                            telemetry_base=url if with_telemetry else None,
                            run_id=run_id, dumps_every=args.dumps_every,
-                           stages_preset=stages)
+                           stages_preset=stages, replay=args.replay,
+                           request_num_ctx=window)
         lane_metrics[key] = m
         s = summarize(f"{key}: {label}", m)
         summaries.append(s)
         print_table([s])
     return summaries, lane_metrics
+
+
+async def _warmup(client: httpx.AsyncClient, url: str, model: str, window: int,
+                  run_id: str, replay: bool, proxy: bool) -> None:
+    payload = {"model": model, "messages": [{"role": "user", "content": "warm up"}],
+               "stream": False, "options": {"num_ctx": window}}
+    headers = {"content-type": "application/json"}
+    if proxy:
+        headers["x-contextgc-run"] = run_id + "-warmup"
+        if replay:
+            headers["x-contextgc-replay"] = "true"
+    try:
+        response = await client.post(f"{url}/api/chat", json=payload, headers=headers)
+        response.raise_for_status()
+    except Exception:
+        pass
 
 
 def _mean(rows: list[dict], key: str) -> float | None:
@@ -260,8 +314,9 @@ def lane_avg(rows: list[dict]) -> dict:
     out = {"lane": rows[0]["lane"], "turns": rows[0]["turns"],
            "sessions": len(rows)}
     for key in ("tokens_first", "tokens_sent_last", "raw_grew_to",
-                "tokens_saved_total", "ttft_avg_s", "latency_avg_s",
-                "errors"):
+                 "tokens_saved_total", "ttft_avg_s", "latency_avg_s",
+                 "errors", "reload_count", "prompt_eval_tokens",
+                 "prompt_eval_duration_ns", "cache_hit_ratio"):
         m = _mean(rows, key)
         out[f"avg_{key}"] = round(m, 4) if m is not None else None
     return out
@@ -273,7 +328,7 @@ async def main() -> None:
     ap.add_argument("--model", default="llama3.2:3b")
     ap.add_argument("--ollama-url", default="http://localhost:11434")
     ap.add_argument("--proxy-url", default="http://localhost:11400")
-    ap.add_argument("--lane", choices=["a", "b", "both"], default="both")
+    ap.add_argument("--lane", choices=["a", "a1", "a2", "b", "both", "three"], default="both")
     ap.add_argument("--dumps-every", type=int, default=4,
                     help="inject a tool dump every N turns (0 = never)")
     ap.add_argument("--stages", default="full",
@@ -284,25 +339,37 @@ async def main() -> None:
                          "first (A/B then B/A) to cancel warm-up/churn drift; "
                          "per-session summaries + cross-session averages in JSON")
     ap.add_argument("--tag", default="run", help="output filename tag")
+    ap.add_argument("--a1-num-ctx", type=int, default=32768,
+                    help="raw quality-ceiling context window")
+    ap.add_argument("--a2-num-ctx", type=int, default=4096,
+                    help="raw constrained context window")
+    ap.add_argument("--b-num-ctx", type=int, default=4096,
+                    help="ContextGC constrained context window")
+    ap.add_argument("--replay", action="store_true",
+                    help="use the same fixed assistant reply in both lanes")
     args = ap.parse_args()
 
     RESULTS_DIR.mkdir(exist_ok=True)
     n_rotate = max(1, args.rotate)
 
-    sessions, agg = [], {"A": [], "B": []}
+    sessions, agg = [], {"A1": [], "A2": [], "B": []}
     async with httpx.AsyncClient(timeout=httpx.Timeout(600.0, connect=10.0)) as client:
         for i in range(n_rotate):
             order = "ab" if i % 2 == 0 else "ba"
-            if args.lane == "a":
+            if args.lane in {"a", "a1"}:
                 order = "a"
+            elif args.lane == "a2":
+                order = "a2"
             elif args.lane == "b":
                 order = "b"
+            elif args.lane == "three":
+                order = ["a1", "a2", "b"]
             run_id = f"{args.tag}-s{i + 1}-{time.time_ns()}"  # unique per session
             print(f"[harness] session {i + 1}/{n_rotate} "
                   f"(run_id={run_id}, lanes {'+'.join(order).upper()}) ...")
             summaries, lane_metrics = await run_session(client, args, order, run_id)
             for s in summaries:
-                agg[s["lane"].split(":")[0]].append(s)
+                agg.setdefault(s["lane"].split(":")[0], []).append(s)
             sessions.append({
                 "session": i + 1,
                 "lane_order": " then ".join(s["lane"] for s in summaries),

@@ -18,6 +18,7 @@ Later endpoints (1.2+): dashboard routes, WS telemetry, benchmark hooks.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import time
 from contextlib import asynccontextmanager
@@ -28,7 +29,7 @@ from fastapi import FastAPI, Request, Response, WebSocket
 from fastapi.responses import StreamingResponse, JSONResponse
 
 from app.core import store as store_mod
-from app.core import gc, telemetry, vram
+from app.core import gc, telemetry, vram, capacity
 from app.core import num_ctx as num_ctx_mod
 from app import config
 
@@ -152,6 +153,22 @@ def _payload_tokens(body: bytes) -> int | None:
         return None  # /api/tags, Ollama errors, anything non-chat
 
 
+def _derived_run_id(body: bytes, path: str) -> str:
+    """Stable fallback identity for frameworks that omit x-contextgc-run."""
+    try:
+        payload = json.loads(body)
+        messages = payload.get("messages") or []
+        system = next((m.get("content", "") for m in messages
+                       if isinstance(m, dict) and m.get("role") == "system"), "")
+        user = next((m.get("content", "") for m in messages
+                     if isinstance(m, dict) and m.get("role") == "user"), "")
+        model = payload.get("model", "")
+        seed = json.dumps([path, model, system, user], ensure_ascii=False, sort_keys=True)
+    except Exception:
+        seed = path + body[:4096].decode("utf-8", errors="replace")
+    return "derived-" + hashlib.blake2b(seed.encode("utf-8"), digest_size=12).hexdigest()
+
+
 _last_vram: dict | None = None  # freshest sampler snapshot (sampler sets it)
 
 
@@ -197,12 +214,16 @@ async def _forward(request: Request, path: str) -> Response:
 
     body = await request.body()
     raw_body = body  # keep the original; GC must never destroy it
-    run_id = request.headers.get("x-contextgc-run", "default")
+    run_id = request.headers.get("x-contextgc-run") or _derived_run_id(body, path)
+    replay = request.headers.get("x-contextgc-replay", "").lower() in {"1", "true", "yes"}
     stages_preset = request.headers.get("x-contextgc-stages") or None
     t_start = time.perf_counter()
     try:
-        body, report = gc.process_payload(path, body, run_id=run_id,
-                                          stages_preset=stages_preset)
+        body, report = await asyncio.to_thread(
+            gc.process_payload, path, body, run_id=run_id,
+            stages_preset=stages_preset,
+            replay=replay,
+        )
     except ValueError as exc:  # e.g. unknown stages preset
         return JSONResponse({"error": str(exc)}, status_code=400)
 
@@ -211,6 +232,7 @@ async def _forward(request: Request, path: str) -> Response:
     fwd_headers = {k: v for k, v in request.headers.items() if k.lower() not in {
         "host", "content-length", "connection", "keep-alive", "transfer-encoding",
         "x-contextgc-run", "x-contextgc-stages",
+        "x-contextgc-replay",
     }}
 
     settings = config.get_settings()
@@ -242,6 +264,17 @@ async def _forward(request: Request, path: str) -> Response:
                 yield chunk
         finally:
             await resp.aclose()
+            try:
+                clean_payload = json.loads(body)
+                model = clean_payload.get("model")
+                residency = await asyncio.to_thread(capacity.post_load_residency, model)
+                report["post_load_residency"] = residency
+                # Only a partial GPU spill is fixable by a smaller window;
+                # CPU-only runtimes (size_vram == 0) keep their pinned tier.
+                if residency.get("checked") and residency.get("partial_spill"):
+                    report["next_pinned_num_ctx"] = num_ctx_mod.lower_window(run_id)
+            except Exception:
+                pass
             emit_turn_telemetry(
                 turn_id, path, run_id, raw_body, body, report,
                 ttft_s=ttft,

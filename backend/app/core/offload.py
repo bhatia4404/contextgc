@@ -162,7 +162,10 @@ def run_offload(payload: dict, report: dict, run_id: str) -> bool:
         return False
 
     settings = config.get_settings()
-    keep_recent_from = tool_idx[-settings.offload_keep_recent:] if settings.offload_keep_recent else []
+    # A compaction epoch keeps only the newest tool result raw: older raw dumps
+    # would otherwise survive the epoch and refill the window within a turn.
+    keep_recent = min(settings.offload_keep_recent, 1) if report.get("compaction") else settings.offload_keep_recent
+    keep_recent_from = tool_idx[-keep_recent:] if keep_recent else []
     last_index = len(messages) - 1
 
     offloads: list[dict] = []
@@ -265,7 +268,10 @@ def maybe_reinject(payload: dict, report: dict) -> bool:
         return False
 
     mentioned: set[int] = set()
-    for m in messages:
+    # Only the active conversational edge can request a re-injection.  Older
+    # history may contain the words "Ref #n" as evidence, not as a request.
+    active = [m for m in messages if isinstance(m, dict) and m.get("role") in {"user", "assistant"}]
+    for m in active[-2:]:
         if not isinstance(m, dict):
             continue
         text = m.get("content")

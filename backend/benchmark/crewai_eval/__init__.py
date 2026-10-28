@@ -1,0 +1,1 @@
+"""Optional CrewAI integration benchmark."""

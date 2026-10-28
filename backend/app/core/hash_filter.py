@@ -1,10 +1,10 @@
-"""Stage 1 — MinHash/LSH exact structural dedup (Milestone 1.4).
+"""Stage 1 — request-local MinHash structural dedup.
 
 Dedupes EPISODIC messages that are structurally near-identical, two ways:
   1. Within the request list (agent loops emit the same boilerplate several
      times inside one payload).
-  2. Across requests of the same run (CrewAI/AutoGen re-send the whole
-     conversation each turn — the cross-agent duplication from plan v2).
+  2. Cross-request history is deliberately *not* used as removal evidence.
+     Frameworks normally resend valid history on every turn.
 
 NEVER removes: procedural (system), semantic, tool-call envelopes, tool
 results (1.5's offload territory), or the LAST message (the freshest
@@ -14,8 +14,8 @@ Similarity: word 3-shingles → MinHash(128 perms) → MinHashLSH(threshold).
 Zero neural cost (Iteration 1/L5: precision-first; threshold 0.92 keeps
 contradictions like "has a bug"/"has no bug" far above but ~0.2 Jaccard apart).
 
-Run state lives in an in-process LRU of MinHashLSH indexes keyed by run_id —
-this is the cross-request cache the 1.2 caches module was built for.
+The LSH index is request-local by design. A prior request is valid history and
+must never be treated as removable duplicate evidence.
 """
 from __future__ import annotations
 
@@ -142,12 +142,16 @@ def run_stage1(payload: dict, run_id: str, report: dict) -> bool:
         return False
 
     settings = config.get_settings()
-    lsh = _state.for_run(run_id)
+    # v3 correctness rule: only messages in this payload may suppress one
+    # another.  A prior request is not a duplicate; it is conversation state.
+    lsh = RunLSHIndex(config.get_settings().gc_stage1_threshold)
     kept: list[dict] = []
     removed: list[dict] = []
     saved_chars = 0
 
-    for i, msg in enumerate(list(messages)):
+    # Scan newest -> oldest so the NEWEST copy survives.
+    for i in range(len(messages) - 1, -1, -1):
+        msg = messages[i]
         if not isinstance(msg, dict):
             kept.append(msg)
             continue
@@ -156,7 +160,7 @@ def run_stage1(payload: dict, run_id: str, report: dict) -> bool:
         text = content if isinstance(content, str) else json.dumps(content, default=str)
 
         # Semantic memory is merge-only territory (Tier 2) — Stage 1 never removes it.
-        ann = next((a for a in report.get("annotations", []) if a.get("index") == i), None)
+        ann = report.get("_annotations_by_object", {}).get(str(id(msg)))
         if ann and ann.get("type") == "semantic":
             kept.append(msg)
             continue
@@ -179,6 +183,8 @@ def run_stage1(payload: dict, run_id: str, report: dict) -> bool:
         lsh.insert(key, mh)
         kept.append(msg)
 
+    kept.reverse()
+    removed.reverse()
     if removed:
         payload["messages"] = kept
         token_est = saved_chars // 4

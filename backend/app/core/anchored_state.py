@@ -162,7 +162,12 @@ def update_state(state: dict, raw_payload: dict, report: dict) -> None:
 
 
 def run_anchor(payload: dict, report: dict, run_id: str) -> bool:
-    """Update per-run state + prepend the anchor. Returns True if prepended."""
+    """Update per-run state + place the anchor immediately before latest user.
+
+    Keeping the synthetic state near the active request avoids rewriting the
+    stable system/history prefix. The compaction coordinator will eventually
+    control when this suffix is refreshed.
+    """
     if not config.get_settings().state_enabled:
         return False
     state = _STATE.for_run(run_id)
@@ -174,20 +179,19 @@ def run_anchor(payload: dict, report: dict, run_id: str) -> bool:
         "active_blocker": state["active_blocker"],
         "next_step": state["next_step"],
     }
+    if not any(block.values()):
+        return False
     content = f"{_ANCHOR_MARKER}\n{json.dumps(block, ensure_ascii=False)}"
 
     messages = payload.setdefault("messages", [])
-    insert_at = 0
-    if messages and messages[0].get("role") == "system" and not _is_anchor(messages[0]):
-        insert_at = 1   # keep the agent's own system message in place; pin after it
-    if messages and _is_anchor(messages[insert_at - 0] if insert_at - 0 < len(messages) else None):
-        pass
-    if any(_is_anchor(m) for m in messages[:insert_at + 1]):
-        # idempotence: an anchor already pinned this turn's view — refresh its payload instead
-        for m in messages:
-            if _is_anchor(m):
-                m["content"] = content
-                return False
+    # Idempotence for a payload that already contains our synthetic message.
+    for m in messages:
+        if _is_anchor(m):
+            m["content"] = content
+            return False
+    user_indexes = [i for i, m in enumerate(messages)
+                    if isinstance(m, dict) and m.get("role") == "user"]
+    insert_at = user_indexes[-1] if user_indexes else len(messages)
     messages.insert(insert_at, {"role": "system", "content": content})
     report["state_pinned"] = True
     return True

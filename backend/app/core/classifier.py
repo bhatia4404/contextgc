@@ -112,6 +112,7 @@ def classify_payload(payload: dict) -> dict:
     if payload.get("tools"):
         report["procedural_locked"] = True  # tool schemas: never GC'd (immutable)
 
+    occurrences: dict[str, int] = {}
     for i, msg in enumerate(messages):
         if not isinstance(msg, dict):
             continue
@@ -120,6 +121,20 @@ def classify_payload(payload: dict) -> dict:
         text = content if isinstance(content, str) else json.dumps(content, default=str)
 
         ann = classify_message(role, text, name=msg.get("name"))
+
+        # Identity survives list mutations.  The occurrence disambiguates two
+        # genuinely repeated messages with the same content.
+        identity_base = json.dumps({
+            "role": role,
+            "name": msg.get("name"),
+            "tool_call_id": msg.get("tool_call_id"),
+            "tool_calls": msg.get("tool_calls"),
+            "content": text,
+        }, sort_keys=True, ensure_ascii=False, default=str)
+        base_hash = hashlib.blake2b(identity_base.encode("utf-8"), digest_size=10).hexdigest()
+        occurrence = occurrences.get(base_hash, 0)
+        occurrences[base_hash] = occurrence + 1
+        ann["identity"] = f"{base_hash}:{occurrence}"
 
         if role in _TOOL_RESULT_ROLES:
             ann["type"] = MemoryType.EPISODIC          # tool OUTPUTS age aggressively
@@ -133,6 +148,7 @@ def classify_payload(payload: dict) -> dict:
                 )
         report["counts"][ann["type"]] += 1
         report["annotations"].append({"index": i, "role": role, **ann})
+        report.setdefault("_annotations_by_object", {})[str(id(msg))] = report["annotations"][-1]
 
     return report
 

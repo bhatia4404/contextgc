@@ -35,6 +35,7 @@ _EMBED_CACHE = LRU(maxsize=4096)
 
 # Injectable encoder (tests inject a deterministic fake; prod uses MiniLM).
 _encoder_fn: Optional[Callable[[str], list[float]]] = None
+_default_encoder_instance: Optional[Callable[[str], list[float]]] = None
 
 # Candidate filters (precision-first).
 _CANDIDATE_MIN_CHARS = 40
@@ -76,18 +77,24 @@ def set_encoder(fn: Optional[Callable[[str], list[float]]]) -> None:
 
 def reset_state() -> None:
     """Test isolation: clear the embedding cache + injected encoder."""
+    global _default_encoder_instance
     _EMBED_CACHE.clear()
+    _default_encoder_instance = None
     set_encoder(None)
 
 
 def _default_encoder() -> Optional[Callable[[str], list[float]]]:
     """Lazy sentence-transformers MiniLM; None when the lib is missing."""
+    global _default_encoder_instance
+    if _default_encoder_instance is not None:
+        return _default_encoder_instance
     try:
         from sentence_transformers import SentenceTransformer
     except Exception:
         return None
     model = SentenceTransformer("all-MiniLM-L6-v2")
-    return lambda text: [float(v) for v in model.encode(text)]
+    _default_encoder_instance = lambda text: [float(v) for v in model.encode(text)]
+    return _default_encoder_instance
 
 
 def _encoder():
@@ -143,13 +150,16 @@ def run_semantic(payload: dict, report: dict, run_id: str = "default") -> bool:
         return False
 
     candidates = []            # (index, text) eligible for contraction
-    annotations = {a.get("index"): a for a in report.get("annotations", [])}
+    annotations = {
+        str(id(msg)): report.get("_annotations_by_object", {}).get(str(id(msg)), {})
+        for msg in messages
+    }
     for i, msg in enumerate(messages):
         if i == len(messages) - 1:          # the live turn is always kept
             continue
         if not isinstance(msg, dict):
             continue
-        ann = annotations.get(i) or {}
+        ann = annotations.get(str(id(msg))) or {}
         mtype = ann.get("type")
         if mtype not in ("semantic", "episodic"):        # procedural: locked
             continue
