@@ -70,6 +70,16 @@ def test_tool_call_loop_triggers():
     assert any("tool_call_loop" in s for s in report["fidelity_fallback"]["signals"])
 
 
+def test_distinct_tool_calls_with_blank_content_are_not_a_loop():
+    # Tool-call-only turns have empty content; distinct calls are progress.
+    turns = [{"role": "assistant", "content": "", "tool_calls": [
+        {"id": str(i), "function": {"name": "read_file", "arguments": {"path": f"log_{i}.txt"}}}]}
+        for i in range(3)]
+    payload = _payload(*turns, {"role": "user", "content": "continue the task"})
+    out, report = _run(payload)
+    assert "fidelity_fallback" not in report
+
+
 # --- 2.3-C: confusion markers ---
 
 

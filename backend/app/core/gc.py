@@ -82,6 +82,15 @@ def process_payload(path: str, body: bytes, run_id: str = "default",
             append_only = False
         payload.pop("_contextgc_pinned_window", None)
         raw_payload.pop("_contextgc_pinned_window", None)
+        family = "api" if path.startswith("/api/") else "v1"
+        capacity_details = None
+        if (not append_only and not retry and not compaction and settings.numctx_enabled
+                and stage_on("numctx") and isinstance(raw_payload.get("messages"), list)):
+            # A full clean (a run's first request, or rebuilt history) that is
+            # already over the trigger compacts now, not one cache bust later.
+            window, capacity_details = num_ctx.ensure_pinned(raw_payload, family, run_id)
+            if num_ctx.estimate_tokens(raw_payload) >= int(window * settings.compaction_trigger):
+                compaction = True
         report = classifier.classify_payload(payload)
         report["incremental_view"] = append_only
         report["compaction"] = compaction
@@ -171,8 +180,8 @@ def process_payload(path: str, body: bytes, run_id: str = "default",
 
     # --- Stage 1.7: dynamic num_ctx negotiation (LAST: sizes what remains) ---
     if settings.numctx_enabled and stage_on("numctx") and not report.get("skipped"):
-        family = "api" if path.startswith("/api/") else "v1"
-        if num_ctx.negotiate(payload, report, family, run_id=run_id):
+        if num_ctx.negotiate(payload, report, family, run_id=run_id,
+                             capacity_details=capacity_details):
             modified = True
         stages_run.append("numctx_negotiation")
 

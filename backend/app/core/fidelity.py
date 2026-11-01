@@ -70,10 +70,12 @@ def detect(payload: dict) -> list[str]:
     messages = messages[-settings.fidelity_recent_messages:]
     threshold = settings.fidelity_loop_threshold
 
-    # 1) identical assistant content repeated
+    # 1) identical assistant content repeated. Blank content is skipped: a
+    #    tool-call-only turn has no text, and its calls are judged by (2).
     counts: dict[str, int] = {}
     for m in messages:
-        if isinstance(m, dict) and m.get("role") == "assistant" and isinstance(m.get("content"), str):
+        if (isinstance(m, dict) and m.get("role") == "assistant"
+                and isinstance(m.get("content"), str) and m["content"].strip()):
             counts[_content_key(m["content"])] = counts.get(_content_key(m["content"]), 0) + 1
     if counts and max(counts.values()) >= threshold:
         signals.append(f"repetition_loop: identical assistant turn x{max(counts.values())} "

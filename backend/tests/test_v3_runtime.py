@@ -135,3 +135,28 @@ def test_compaction_keeps_recent_turns_with_big_live_dump(settings_factory, tmp_
     # oldest-first: survivors are the most recent instructions, in order
     idx = [int(u.split()[1].rstrip(":")) for u in users]
     assert idx == sorted(idx) and idx[-1] == max(idx)
+
+
+def test_first_request_over_trigger_compacts_immediately(settings_factory, tmp_path):
+    # Plan v3 3.3.2: a run that starts above ~70% of its window compacts on
+    # that request, instead of shipping the oversized prompt and busting the
+    # cache one turn later.
+    settings_factory(gc_enabled=True, scratchpad_dir=str(tmp_path / "scratch"))
+    dump = "\n".join(f"[ci] row {i} services/module_{i % 97}.py PASSED" for i in range(600))
+    payload = {"model": "m", "options": {"num_ctx": 4096}, "messages": [
+        {"role": "system", "content": "You are a coding agent."},
+        {"role": "user", "content": "Fix the failing sum function."},
+        {"role": "assistant", "content": "", "tool_calls": [
+            {"id": "a", "function": {"name": "read_file", "arguments": {"path": "a.log"}}}]},
+        {"role": "tool", "tool_call_id": "a", "content": dump},
+        {"role": "assistant", "content": "", "tool_calls": [
+            {"id": "b", "function": {"name": "read_file", "arguments": {"path": "b.log"}}}]},
+        {"role": "tool", "tool_call_id": "b", "content": dump},
+        {"role": "user", "content": "continue"},
+    ]}
+    out, report = process_payload("/api/chat", json.dumps(payload).encode(), run_id="first-big")
+    assert report["compaction"] is True
+    assert report["compaction_window"] == 4096
+    from app.core.num_ctx import estimate_tokens
+    assert estimate_tokens(json.loads(out)) < int(4096 * 0.70)
+    run_state.reset()

@@ -72,14 +72,14 @@ def probe(model: str | None) -> dict[str, Any]:
         return result
     try:
         base = settings.ollama_base_url.rstrip('/')
-        with httpx.Client(timeout=0.5) as client:
+        with httpx.Client(timeout=3.0) as client:
             response = client.post(f"{base}/api/show", json={"name": model})
             if response.status_code != 200:
                 return result
             data = response.json()
             info = data.get("model_info") or {}
-            # /api/show on Ollama 0.40.x exposes architecture metadata but not the
-            # on-disk weight size. /api/tags is the authoritative size source.
+            # /api/show exposes architecture metadata but not the on-disk weight
+            # size. /api/tags is the authoritative size source.
             try:
                 tags = client.get(f"{base}/api/tags").json().get("models", [])
                 names = {model, model if ":" in model else f"{model}:latest"}

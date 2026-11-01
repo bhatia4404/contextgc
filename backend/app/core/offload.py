@@ -167,14 +167,15 @@ def run_offload(payload: dict, report: dict, run_id: str) -> bool:
     keep_recent = min(settings.offload_keep_recent, 1) if report.get("compaction") else settings.offload_keep_recent
     keep_recent_from = tool_idx[-keep_recent:] if keep_recent else []
     last_index = len(messages) - 1
+    # A recent result that alone exceeds the compaction budget cannot stay raw:
+    # the backend would truncate the system prompt and task to fit it.
+    oversize = int(report.get("compaction_budget") or 0) if report.get("compaction") else 0
 
     offloads: list[dict] = []
     for i in tool_idx:
         msg = messages[i]
         if i == last_index:
             continue                              # freshness: never the last
-        if i in keep_recent_from:                 # freshness: newest N stay raw
-            continue
         content = msg.get("content")
         text = content if isinstance(content, str) else json.dumps(content, default=str)
         if _is_pointer(text):
@@ -182,10 +183,8 @@ def run_offload(payload: dict, report: dict, run_id: str) -> bool:
         est_before = num_ctx_mod.estimate_tokens({"messages": [msg]})
         if est_before < settings.offload_threshold_tokens:
             continue                              # dump-sized only (precision-first)
-
-        est_before = num_ctx_mod.estimate_tokens({"messages": [msg]})
-        if est_before < settings.offload_threshold_tokens:
-            continue                              # dump-sized only (precision-first)
+        if i in keep_recent_from and not (oversize and est_before > oversize):
+            continue                              # freshness: newest N stay raw
 
         _ensure_registry()                        # survive proxy restarts (self-heal)
         chash = (run_id, _content_hash(text))

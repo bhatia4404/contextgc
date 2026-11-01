@@ -10,7 +10,7 @@
 
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![FastAPI](https://img.shields.io/badge/FastAPI-proxy-009688)
-![Tests](https://img.shields.io/badge/tests-97%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-105%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-—-lightgrey)
 
 ---
@@ -87,21 +87,144 @@ occasional epoch boundary, not a per-turn rewrite.
 
 ---
 
-## Quick start
+## Quick start: verify it works (CPU only, no GPU needed)
+
+Every step below was run on a CPU-only Windows laptop (16 GB RAM, no GPU).
+Commands are PowerShell; the bash form is shown where it differs.
+
+| You need | Notes |
+|---|---|
+| Python 3.12 | `python --version` |
+| [Ollama](https://ollama.com/download) | only for steps 3–6; step 2 needs nothing else |
+| ~3 GB free disk | for the `qwen2.5:3b` model (1.9 GB) |
+
+### 1. Install
 
 ```powershell
-# 1) install deps
-cd backend
+git clone <this repo> ; cd MetaAI/backend
 python -m pip install -r requirements.txt
-
-# 2) run the proxy (assumes Ollama on localhost:11434)
-python -m uvicorn app.main:app --host 127.0.0.1 --port 11400
-
-# 3) satellite check
-curl http://localhost:11400/healthz
 ```
 
-Point any OpenAI-compatible client at it:
+### 2. Run the test suite (no Ollama, no GPU, about 10 s)
+
+```powershell
+python -m pytest tests -q
+```
+
+Expected: `105 passed`. The tests talk to a mock model server, so this works on any machine.
+
+### 3. Get Ollama and a model
+
+```powershell
+ollama pull qwen2.5:3b
+ollama list                    # qwen2.5:3b should be listed
+```
+
+The Ollama desktop app starts the server automatically; otherwise run `ollama serve` in
+its own terminal. `qwen2.5:3b` is the recommended model: it is small enough for a CPU and
+good enough at tool calls to solve the benchmark tasks (`llama3.2:3b` is not).
+
+### 4. Start the proxy with GC switched on
+
+GC is **off by default** (the proxy is then a byte-for-byte passthrough), so turn it on:
+
+```powershell
+$env:CONTEXTGC_GC_ENABLED = "true"
+python -m uvicorn app.main:app --host 127.0.0.1 --port 11400
+```
+
+```bash
+CONTEXTGC_GC_ENABLED=true python -m uvicorn app.main:app --host 127.0.0.1 --port 11400
+```
+
+In a second terminal (inside `backend`):
+
+```powershell
+curl http://localhost:11400/healthz
+# {"service":"contextgc", ..., "gc_enabled":true}
+```
+
+### 5. Send a request through it
+
+```powershell
+$env:CONTEXTGC_MODEL = "qwen2.5:3b"
+python scripts/smoke_test.py
+# [health] service=contextgc gc_enabled=True sink=ollama
+# reply: 'hello world'   (total_tokens=42)
+# [PASS] non-streaming passthrough works
+```
+
+See what the GC did to each request (raw vs. cleaned tokens, savings per stage, the
+pinned window):
+
+```powershell
+curl http://localhost:11400/telemetry/recent
+```
+
+To watch GC trim a growing agent conversation turn by turn (big tool dumps arrive
+every few turns; `sent_est=` is what the agent sent, `clean=` what reached the model):
+
+```powershell
+python benchmark/run_simulation.py --lane b --turns 8 --model qwen2.5:3b
+#   turn  8 [chat]      sent_est= 2707 clean= 2707 saved=    0 (0.0%)
+#   turn  9 [tool_dump] sent_est= 5028 clean= 2508 saved= 2520 (50.1%) stages={'tool_offload': 2202, ...}
+#   turn 10 [chat]      sent_est= 5087 clean= 2567 saved= 2520 (49.5%)
+```
+
+Nothing is removed while the conversation fits. Once it crosses ~70% of the pinned
+window (turn 9 here) ContextGC compacts it once, mainly by moving old tool output to
+disk behind a pointer, and later turns build on the compacted prompt so Ollama's
+prefix cache keeps working (note the ~1 s first-token time on turn 10). About 5 minutes on a CPU.
+
+### 6. Run the task benchmark with one command
+
+`scripts/run_stack.py` uses the Ollama and proxy that are already running (or starts
+them if they are not), then runs the benchmark. This quick version runs one coding task
+in all three lanes:
+
+```powershell
+python scripts/run_stack.py --model qwen2.5:3b -- benchmark/run_tasks.py --tasks fix_path_join --repeats 1 --small-num-ctx 4096 --pad-tokens 2500
+```
+
+| Lane | What it is |
+|---|---|
+| **A1** | raw Ollama with a big 32k window (the quality ceiling) |
+| **A2** | raw Ollama with the same small window as B (plain truncation) |
+| **B** | through ContextGC with the small window |
+
+Each line reports: `PASS`/`fail` from the task's own pytest checker, `steps` taken by the
+agent, `wall` time, `reloads` (model reloads; should be 0), `cache` (share of prompt
+tokens served from Ollama's prefix cache) and `gpu` (share of the model in GPU memory;
+0.0 on a CPU). Results are saved as JSON in `benchmark/results/`.
+
+On a laptop CPU this takes about 4 minutes per lane (≈11 minutes in total). A single
+run of a 3B model is noisy: any lane can pass or fail one task by chance, so this quick
+run checks that everything works end to end, not which lane is better. Judge quality by
+success rates over many runs. The full
+benchmark (8 tasks × 3 lanes × 3 repeats) is `... benchmark/run_tasks.py --repeats 3`;
+that is several hours on a CPU, so run it on a GPU.
+
+### 7. On a GPU
+
+- **Local NVIDIA GPU:** run the same commands. The window is sized from free VRAM
+  automatically, and `gpu=1.0` in the output means the model sits fully on the GPU.
+  `pip install pynvml` gives the most accurate VRAM readings.
+- **Modal or any remote machine:** see [Running anywhere](#running-anywhere-cpu-a-remote-gpu-box-or-modal).
+
+### Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `could not connect to a running Ollama instance` / `[stack] Ollama is not running` | start the Ollama app or `ollama serve` |
+| `model "…" not found` | `ollama pull qwen2.5:3b`, or pass the model you have with `--model` |
+| `healthz` shows `"gc_enabled": false` | restart the proxy with `CONTEXTGC_GC_ENABLED=true` |
+| `[stack] proxy ... is running with GC off` | stop that proxy, or start one with GC on |
+| port 11400 already in use | another proxy is running; reuse it or pick `--port` / `--proxy-url` |
+| very slow first request | normal on CPU: the first prompt of a run is processed cold; later turns hit the cache |
+
+### Use it with your own agent
+
+Point any OpenAI-compatible client at the proxy:
 
 ```python
 from openai import OpenAI
@@ -110,7 +233,48 @@ client = OpenAI(base_url="http://localhost:11400/v1", api_key="contextgc")
 # CrewAI / AutoGen / LangChain: same idea — just set base_url.
 ```
 
-That's it. Framework code stays untouched.
+Framework code stays untouched. Note that Ollama's `/v1` endpoint ignores the pinned
+window; see [Context-window configuration](#context-window-configuration).
+
+---
+
+## Running anywhere: CPU, a remote GPU box, or Modal
+
+The same launcher runs the whole stack on any machine: `backend/scripts/run_stack.py`
+reuses Ollama and the proxy if they are already up, otherwise starts them, pulls the
+model, runs a benchmark, and stops what it started. The benchmark sizes its windows
+for the machine it lands on (`--small-num-ctx auto`: VRAM-sized on a GPU, the
+`CONTEXTGC_NUMCTX_DEFAULT` window on CPU) and records the hardware plus Ollama's
+GPU residency (`size_vram / size`) in every result file.
+
+**Local CPU or local GPU**
+
+```powershell
+cd backend
+python scripts/run_stack.py --model qwen2.5:3b -- benchmark/run_tasks.py --repeats 3
+```
+
+**Any remote machine** (cloud VM, lab box): install Ollama and
+`pip install -r backend/requirements.txt pynvml`, then run the same command there.
+To keep the proxy on your machine and use a remote Ollama instead, pass
+`--ollama-url http://<host>:11434` (the remote side needs `OLLAMA_HOST=0.0.0.0`).
+
+**Modal GPUs** (`deploy/modal_app.py`): the container runs the same launcher, with
+weights in a Modal Volume and results copied back to `backend/benchmark/results/modal/`.
+
+```powershell
+pip install modal
+modal token new                                                  # once
+modal run deploy/modal_app.py::pull --models qwen2.5:3b          # CPU container fills the weights Volume
+modal run deploy/modal_app.py::main --gpu t4 --models qwen2.5:3b --tasks fix_path_join --repeats 1   # smoke
+modal run deploy/modal_app.py::main --gpu l4 --models llama3.1:8b --vram-override-mb 8192
+modal run deploy/modal_app.py::sweep --gpus t4,l4 --models llama3.2:3b,llama3.1:8b --overrides 0,8192,6144
+```
+
+GPUs: `t4`, `l4`, `a10g`, plus `cpu`. `--vram-override-mb` simulates a smaller card for the
+window choice (`CONTEXTGC_VRAM_OVERRIDE_MB`). It does not shrink real GPU memory, so
+spill-to-CPU of the raw lane only shows up on a card that is actually small.
+Each container stops after `CONTEXTGC_MODAL_TIMEOUT_H` hours (default 4).
 
 ---
 
@@ -212,7 +376,10 @@ backend/
     gc.py                # pipeline orchestrator
     telemetry.py         # ring buffer + WS bus + per-turn event builder
     vram.py              # VRAM sampler (pynvml → nvidia-smi → graceful none)
-  scripts/               # smoke test, savings report, replay/explain tools
+  benchmark/             # run_tasks.py (A1/A2/B task success), run_simulation.py (latency)
+  scripts/               # run_stack.py launcher, smoke test, savings report, replay tools
+deploy/
+  modal_app.py           # Modal GPU containers running scripts/run_stack.py
   tests/                 # pytest acceptance suite (mock sink — no Ollama needed)
 ```
 
@@ -225,7 +392,7 @@ cd backend
 python -m pytest tests -q
 ```
 
-97 passing. The acceptance suite runs against a **mock sink**, so no Ollama or GPU is
+105 passing. The acceptance suite runs against a **mock sink**, so no Ollama or GPU is
 required. It covers: byte-faithful passthrough (OpenAI + native + SSE streaming), the
 store, the classifier, dedup, offload & re-injection, anchored state, num_ctx
 pinning, and the telemetry bus.
@@ -245,7 +412,7 @@ Implemented foundation — **proxy, correctness safeguards, and v3 cache-safety 
   state pin, referenced-later turns and standing facts) · deterministic fidelity
   fallback (loop/confusion rule engine → recovery turn replays the raw view)
 
-**97 tests passing** (mock sink, no Ollama required). Runtime capacity probing,
+**105 tests passing** (mock sink, no Ollama required). Runtime capacity probing,
 incremental prefix views, and compaction epochs are implemented; hardware benchmark
 execution remains environment-dependent.
 
@@ -280,6 +447,13 @@ run with a new `x-contextgc-run` value to select a different window.
 The capacity probe uses VRAM telemetry, `/api/show` architecture metadata, and
 `/api/tags` model size. If any input is unavailable—especially on CPU-only systems—
 it falls back to `CONTEXTGC_NUMCTX_DEFAULT`.
+
+**`/v1` does not honor `num_ctx` (checked on Ollama 0.40.13).** Ollama's
+OpenAI-compatible endpoint ignores `num_ctx` whether it is sent top-level or under
+`options`; the model loads at the server default (`OLLAMA_CONTEXT_LENGTH`, 4096 unless
+set). The pinned window is only enforced on the native `/api/chat` path. For
+frameworks, either point them at the native API (e.g. LiteLLM's `ollama_chat/<model>`
+provider) or start Ollama with `OLLAMA_CONTEXT_LENGTH` set to the window you want.
 
 ---
 

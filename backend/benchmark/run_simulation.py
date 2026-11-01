@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -34,7 +35,7 @@ import httpx
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # backend/ on path
 
-RESULTS_DIR = Path(__file__).resolve().parent / "results"
+RESULTS_DIR = Path(os.getenv("CONTEXTGC_RESULTS_DIR") or Path(__file__).resolve().parent / "results")
 
 # Deterministic agent-style scenario: alternating instruction turns; every 4th
 # turn injects a big synthetic "tool dump" (the episodic bloat trigger).
@@ -162,8 +163,8 @@ async def run_lane(client: httpx.AsyncClient, base_url: str, n_turns: int,
         if last_chunk:
             metric["ollama"] = {
                 key: last_chunk.get(key)
-                for key in ("load_duration", "prompt_eval_count", "prompt_eval_duration",
-                            "eval_count", "eval_duration")
+                for key in ("load_duration", "prompt_eval_count", "prompt_eval_cached_count",
+                            "prompt_eval_duration", "eval_count", "eval_duration")
                 if key in last_chunk
             }
             load_ns = last_chunk.get("load_duration")
@@ -172,8 +173,6 @@ async def run_lane(client: httpx.AsyncClient, base_url: str, n_turns: int,
             # single-digit milliseconds and must not be called a reload.
             if load_ns is not None:
                 metric["reload"] = load_ns > 500_000_000
-            if prompt_ns is not None:
-                metric["prompt_cache_candidate"] = prompt_ns < 100_000_000
         # Lane B: pull what the proxy itself sent downstream this turn
         if telemetry_base:
             ev = await _pull_next_telemetry(client, telemetry_base, seen_event_ids)
@@ -224,6 +223,7 @@ def summarize(name: str, metrics: list[dict]) -> dict:
     ollama = [m.get("ollama", {}) for m in metrics]
     prompt_eval = [x.get("prompt_eval_count") for x in ollama if x.get("prompt_eval_count") is not None]
     prompt_dur = [x.get("prompt_eval_duration") for x in ollama if x.get("prompt_eval_duration") is not None]
+    cache = cache_stats(ollama)
     return {
         "lane": name,
         "turns": len(metrics),
@@ -236,12 +236,38 @@ def summarize(name: str, metrics: list[dict]) -> dict:
         "latency_avg_s": round(sum(lat) / len(lat), 4) if lat else None,
         "errors": sum(1 for m in metrics if m["http_status"] != 200),
         "reload_count": sum(1 for m in metrics if m.get("reload") is True),
-        "cache_hit_ratio": round(
-            sum(1 for m in metrics if m.get("prompt_cache_candidate") is True) / len(metrics), 4
-        ) if metrics else 0.0,
+        "cache_hit_ratio": cache["cache_hit_ratio"],
+        "prefilled_tokens_est": cache["prefilled_tokens_est"],
         "prompt_eval_tokens": sum(prompt_eval),
         "prompt_eval_duration_ns": sum(prompt_dur),
     }
+
+
+def cache_stats(ollama: list[dict], min_cold_tokens: int = 256) -> dict:
+    """Cache-hit ratio = 1 - prefilled / prompt tokens (plan v3, 3.1.2).
+
+    Newer Ollama builds report prompt_eval_cached_count; that is used when
+    every row has it. Older builds report prompt_eval_count as the whole prompt
+    even when the KV prefix cache served most of it, so tokens actually
+    prefilled are estimated from time: prompt_eval_duration / the lane's cold
+    ns-per-token rate (the slowest per-token turn with a non-trivial prompt).
+    """
+    counted = [x for x in ollama if x.get("prompt_eval_count")]
+    if counted and all(x.get("prompt_eval_cached_count") is not None for x in counted):
+        prompt = sum(x["prompt_eval_count"] for x in counted)
+        prefilled = prompt - sum(x["prompt_eval_cached_count"] for x in counted)
+        return {"cache_hit_ratio": round(1 - prefilled / prompt, 4),
+                "prefilled_tokens_est": int(prefilled), "cache_source": "ollama"}
+    rows = [(x["prompt_eval_count"], x["prompt_eval_duration"]) for x in counted
+            if x.get("prompt_eval_duration")]
+    rates = [dur / count for count, dur in rows if count >= min_cold_tokens]
+    if not rates:
+        return {"cache_hit_ratio": None, "prefilled_tokens_est": None, "cache_source": None}
+    cold = max(rates)
+    prompt = sum(count for count, _ in rows)
+    prefilled = sum(min(count, dur / cold) for count, dur in rows)
+    return {"cache_hit_ratio": round(1 - prefilled / prompt, 4),
+            "prefilled_tokens_est": int(prefilled), "cache_source": "timing"}
 
 
 def print_table(rows: list[dict]) -> None:
@@ -316,7 +342,7 @@ def lane_avg(rows: list[dict]) -> dict:
     for key in ("tokens_first", "tokens_sent_last", "raw_grew_to",
                  "tokens_saved_total", "ttft_avg_s", "latency_avg_s",
                  "errors", "reload_count", "prompt_eval_tokens",
-                 "prompt_eval_duration_ns", "cache_hit_ratio"):
+                 "prompt_eval_duration_ns", "cache_hit_ratio", "prefilled_tokens_est"):
         m = _mean(rows, key)
         out[f"avg_{key}"] = round(m, 4) if m is not None else None
     return out
@@ -349,7 +375,7 @@ async def main() -> None:
                     help="use the same fixed assistant reply in both lanes")
     args = ap.parse_args()
 
-    RESULTS_DIR.mkdir(exist_ok=True)
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     n_rotate = max(1, args.rotate)
 
     sessions, agg = [], {"A1": [], "A2": [], "B": []}
@@ -363,7 +389,8 @@ async def main() -> None:
             elif args.lane == "b":
                 order = "b"
             elif args.lane == "three":
-                order = ["a1", "a2", "b"]
+                lanes = ["a1", "a2", "b"]
+                order = lanes[i % 3:] + lanes[:i % 3]  # rotate who goes first
             run_id = f"{args.tag}-s{i + 1}-{time.time_ns()}"  # unique per session
             print(f"[harness] session {i + 1}/{n_rotate} "
                   f"(run_id={run_id}, lanes {'+'.join(order).upper()}) ...")

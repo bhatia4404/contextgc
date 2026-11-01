@@ -98,34 +98,49 @@ def _choose_initial_window(settings: config.Settings, estimated: int) -> int:
     return _round_down_tier(default) if default >= 4096 else settings.numctx_min
 
 
-def negotiate(payload: dict, report: dict, endpoint_family: str, run_id: str = "default") -> bool:
-    """Inject one stable context window for a run; never resize per turn."""
-    settings = config.get_settings()
-    est = estimate_tokens(payload)
-    existing_client = None
+def _client_window(payload: dict, endpoint_family: str) -> int | None:
     if endpoint_family == "api":
         options = payload.get("options")
         if isinstance(options, dict) and options.get("num_ctx"):
-            existing_client = int(options["num_ctx"])
+            return int(options["num_ctx"])
     elif endpoint_family == "v1":
         if payload.get("num_ctx"):
-            existing_client = int(payload["num_ctx"])
+            return int(payload["num_ctx"])
+    return None
 
+
+def ensure_pinned(payload: dict, endpoint_family: str,
+                  run_id: str = "default") -> tuple[int, dict | None]:
+    """The run's window, pinning it now if this is the run's first request.
+
+    Returns (window, capacity probe details when the probe chose it).
+    """
+    settings = config.get_settings()
     with _LOCK:
         chosen = _RUN_WINDOWS.get(run_id)
+    if chosen is not None:
+        return chosen, None
     capacity_details = None
-    if chosen is None:
-        if existing_client:
-            candidate = existing_client
-        else:
-            from app.core.capacity import choose_window
-            candidate, capacity_details = choose_window(
-                payload.get("model"), settings.numctx_default,
-                settings.numctx_min, settings.numctx_max,
-            )
-        candidate = max(settings.numctx_min, min(candidate, settings.numctx_max))
-        with _LOCK:
-            chosen = _RUN_WINDOWS.setdefault(run_id, candidate)
+    candidate = _client_window(payload, endpoint_family)
+    if not candidate:
+        from app.core.capacity import choose_window
+        candidate, capacity_details = choose_window(
+            payload.get("model"), settings.numctx_default,
+            settings.numctx_min, settings.numctx_max,
+        )
+    candidate = max(settings.numctx_min, min(candidate, settings.numctx_max))
+    with _LOCK:
+        return _RUN_WINDOWS.setdefault(run_id, candidate), capacity_details
+
+
+def negotiate(payload: dict, report: dict, endpoint_family: str, run_id: str = "default",
+              capacity_details: dict | None = None) -> bool:
+    """Inject one stable context window for a run; never resize per turn."""
+    settings = config.get_settings()
+    est = estimate_tokens(payload)
+    existing_client = _client_window(payload, endpoint_family)
+    chosen, probed = ensure_pinned(payload, endpoint_family, run_id)
+    capacity_details = probed or capacity_details
 
     neg = report.setdefault("numctx_negotiation", {})
     neg.update({

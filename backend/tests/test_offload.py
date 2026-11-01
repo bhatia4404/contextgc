@@ -60,6 +60,7 @@ def test_dump_offloaded_and_file_written(stage_env, tmp_path):
         _tool_msg(id="2", content=DUMP),
         _tool_msg(id="3", content=DUMP),
     )
+    payload["options"] = {"num_ctx": 32768}  # no window pressure: not a compaction turn
     out, report = process_payload("/api/chat", json.dumps(payload).encode(), run_id="r")
     t = report["tool_offload"]
     assert len(t["offloads"]) == 1
@@ -95,6 +96,7 @@ def test_freshness_keep_recent_and_last(stage_env):
         _tool_msg(id="3", content=DUMP),
         _tool_msg(id="4", content=DUMP),
     )
+    payload["options"] = {"num_ctx": 32768}  # no window pressure: not a compaction turn
     out, report = process_payload("/api/chat", json.dumps(payload).encode(), run_id="r")
     fwd = json.loads(out)["messages"]
     pointers = [i for i, m in enumerate(fwd)

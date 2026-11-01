@@ -3,6 +3,7 @@ uvicorn[standard]>=0.30
 httpx>=0.27
 pydantic>=2.7
 pydantic-settings>=2.3
+datasketch>=1.6
 pytest>=8.0
 pytest-asyncio>=0.23
 # optional (Tier 2): pip install sentence-transformers — S4 semantic contraction
