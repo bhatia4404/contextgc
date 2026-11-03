@@ -1,0 +1,1482 @@
+{
+ "generated": "2026-11-03",
+ "repo": "https://github.com/bhatia4404/contextgc",
+ "campaigns": [
+  {
+   "id": "step1b_all_tasks_7b_deterministic",
+   "model": "qwen2.5:7b",
+   "gpu": "GPU",
+   "windows": {
+    "big": 32768,
+    "small": 8192
+   },
+   "repeats": 1,
+   "summary": {
+    "A1": {
+     "runs": 8,
+     "passed": 3,
+     "rate": 0.375,
+     "prompt_tokens": 1187049,
+     "wall_s": 397.4,
+     "reloads": 0,
+     "fidelity_fallbacks": 0,
+     "compactions": 0
+    },
+    "A2": {
+     "runs": 8,
+     "passed": 2,
+     "rate": 0.25,
+     "prompt_tokens": 473627,
+     "wall_s": 349.6,
+     "reloads": 0,
+     "fidelity_fallbacks": 0,
+     "compactions": 0
+    },
+    "B": {
+     "runs": 8,
+     "passed": 5,
+     "rate": 0.625,
+     "prompt_tokens": 398537,
+     "wall_s": 253.4,
+     "reloads": 0,
+     "fidelity_fallbacks": 0,
+     "compactions": 0
+    }
+   },
+   "per_task": {
+    "fix_failing_sum": {
+     "A1": {
+      "runs": 1,
+      "passed": 1,
+      "rate": 1.0,
+      "prompt_tokens": 98826,
+      "wall_s": 22.0,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "A2": {
+      "runs": 1,
+      "passed": 1,
+      "rate": 1.0,
+      "prompt_tokens": 26446,
+      "wall_s": 11.8,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "B": {
+      "runs": 1,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 72658,
+      "wall_s": 53.7,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     }
+    },
+    "repair_json_reader": {
+     "A1": {
+      "runs": 1,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 187927,
+      "wall_s": 78.6,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "A2": {
+      "runs": 1,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 70490,
+      "wall_s": 44.2,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "B": {
+      "runs": 1,
+      "passed": 1,
+      "rate": 1.0,
+      "prompt_tokens": 34086,
+      "wall_s": 11.4,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     }
+    },
+    "fix_path_join": {
+     "A1": {
+      "runs": 1,
+      "passed": 1,
+      "rate": 1.0,
+      "prompt_tokens": 98515,
+      "wall_s": 22.0,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "A2": {
+      "runs": 1,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 72040,
+      "wall_s": 46.7,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "B": {
+      "runs": 1,
+      "passed": 1,
+      "rate": 1.0,
+      "prompt_tokens": 49956,
+      "wall_s": 21.5,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     }
+    },
+    "preserve_false_values": {
+     "A1": {
+      "runs": 1,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 181468,
+      "wall_s": 68.3,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "A2": {
+      "runs": 1,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 72183,
+      "wall_s": 62.1,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "B": {
+      "runs": 1,
+      "passed": 1,
+      "rate": 1.0,
+      "prompt_tokens": 28282,
+      "wall_s": 17.1,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     }
+    },
+    "fix_retry_counter": {
+     "A1": {
+      "runs": 1,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 182121,
+      "wall_s": 52.6,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "A2": {
+      "runs": 1,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 72254,
+      "wall_s": 55.1,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "B": {
+      "runs": 1,
+      "passed": 1,
+      "rate": 1.0,
+      "prompt_tokens": 39657,
+      "wall_s": 19.4,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     }
+    },
+    "implement_stable_sort": {
+     "A1": {
+      "runs": 1,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 181681,
+      "wall_s": 61.5,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "A2": {
+      "runs": 1,
+      "passed": 1,
+      "rate": 1.0,
+      "prompt_tokens": 20949,
+      "wall_s": 10.9,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "B": {
+      "runs": 1,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 68421,
+      "wall_s": 80.8,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     }
+    },
+    "fix_cache_key": {
+     "A1": {
+      "runs": 1,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 186440,
+      "wall_s": 71.0,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "A2": {
+      "runs": 1,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 71573,
+      "wall_s": 64.6,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "B": {
+      "runs": 1,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 73977,
+      "wall_s": 36.2,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     }
+    },
+    "fix_csv_parser": {
+     "A1": {
+      "runs": 1,
+      "passed": 1,
+      "rate": 1.0,
+      "prompt_tokens": 70071,
+      "wall_s": 21.4,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "A2": {
+      "runs": 1,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 67692,
+      "wall_s": 54.2,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "B": {
+      "runs": 1,
+      "passed": 1,
+      "rate": 1.0,
+      "prompt_tokens": 31500,
+      "wall_s": 13.3,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     }
+    }
+   }
+  }
+ ],
+ "highlights": [
+  {
+   "campaign": "step1b_all_tasks_7b_deterministic",
+   "model": "qwen2.5:7b",
+   "gpu": "GPU",
+   "task": "preserve_false_values",
+   "score": [
+    1.0,
+    1.0,
+    0.844
+   ],
+   "lanes": {
+    "A1": {
+     "runs": 1,
+     "passed": 0,
+     "rate": 0.0,
+     "prompt_tokens": 181468,
+     "wall_s": 68.3,
+     "reloads": 0,
+     "fidelity_fallbacks": 0,
+     "compactions": 0
+    },
+    "A2": {
+     "runs": 1,
+     "passed": 0,
+     "rate": 0.0,
+     "prompt_tokens": 72183,
+     "wall_s": 62.1,
+     "reloads": 0,
+     "fidelity_fallbacks": 0,
+     "compactions": 0
+    },
+    "B": {
+     "runs": 1,
+     "passed": 1,
+     "rate": 1.0,
+     "prompt_tokens": 28282,
+     "wall_s": 17.1,
+     "reloads": 0,
+     "fidelity_fallbacks": 0,
+     "compactions": 0
+    }
+   },
+   "traces": {
+    "A1": {
+     "passed": false,
+     "repeat": 1,
+     "window": 32768,
+     "steps": [
+      {
+       "step": 1,
+       "prompt": 13847,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 2,
+       "prompt": 14246,
+       "tools": [],
+       "error": false
+      },
+      {
+       "step": 3,
+       "prompt": 14270,
+       "tools": [],
+       "error": false
+      },
+      {
+       "step": 4,
+       "prompt": 14294,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 5,
+       "prompt": 14465,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 6,
+       "prompt": 14864,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 7,
+       "prompt": 15030,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 8,
+       "prompt": 15196,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 9,
+       "prompt": 15595,
+       "tools": [],
+       "error": false
+      },
+      {
+       "step": 10,
+       "prompt": 16131,
+       "tools": [],
+       "error": false
+      },
+      {
+       "step": 11,
+       "prompt": 16497,
+       "tools": [],
+       "error": false
+      },
+      {
+       "step": 12,
+       "prompt": 17033,
+       "tools": [],
+       "error": false
+      }
+     ]
+    },
+    "A2": {
+     "passed": false,
+     "repeat": 1,
+     "window": 8192,
+     "steps": [
+      {
+       "step": 1,
+       "prompt": 4816,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 2,
+       "prompt": 5211,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 3,
+       "prompt": 5610,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 4,
+       "prompt": 5726,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 5,
+       "prompt": 5800,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 6,
+       "prompt": 5942,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 7,
+       "prompt": 6519,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 8,
+       "prompt": 6654,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 9,
+       "prompt": 6784,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 10,
+       "prompt": 7332,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 11,
+       "prompt": 7867,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 12,
+       "prompt": 3922,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      }
+     ]
+    },
+    "B": {
+     "passed": true,
+     "repeat": 1,
+     "window": 8192,
+     "steps": [
+      {
+       "step": 1,
+       "prompt": 5040,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 2,
+       "prompt": 5437,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 3,
+       "prompt": 5836,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 4,
+       "prompt": 6004,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 5,
+       "prompt": 5965,
+       "tools": [],
+       "error": false
+      }
+     ]
+    }
+   }
+  },
+  {
+   "campaign": "step1b_all_tasks_7b_deterministic",
+   "model": "qwen2.5:7b",
+   "gpu": "GPU",
+   "task": "repair_json_reader",
+   "score": [
+    1.0,
+    1.0,
+    0.819
+   ],
+   "lanes": {
+    "A1": {
+     "runs": 1,
+     "passed": 0,
+     "rate": 0.0,
+     "prompt_tokens": 187927,
+     "wall_s": 78.6,
+     "reloads": 0,
+     "fidelity_fallbacks": 0,
+     "compactions": 0
+    },
+    "A2": {
+     "runs": 1,
+     "passed": 0,
+     "rate": 0.0,
+     "prompt_tokens": 70490,
+     "wall_s": 44.2,
+     "reloads": 0,
+     "fidelity_fallbacks": 0,
+     "compactions": 0
+    },
+    "B": {
+     "runs": 1,
+     "passed": 1,
+     "rate": 1.0,
+     "prompt_tokens": 34086,
+     "wall_s": 11.4,
+     "reloads": 0,
+     "fidelity_fallbacks": 0,
+     "compactions": 0
+    }
+   },
+   "traces": {
+    "A1": {
+     "passed": false,
+     "repeat": 1,
+     "window": 32768,
+     "steps": [
+      {
+       "step": 1,
+       "prompt": 13850,
+       "tools": [
+        "list_files"
+       ],
+       "error": false
+      },
+      {
+       "step": 2,
+       "prompt": 13945,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 3,
+       "prompt": 14086,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 4,
+       "prompt": 14455,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 5,
+       "prompt": 14546,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 6,
+       "prompt": 15182,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 7,
+       "prompt": 15639,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 8,
+       "prompt": 16238,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 9,
+       "prompt": 16721,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 10,
+       "prompt": 17230,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 11,
+       "prompt": 17735,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 12,
+       "prompt": 18300,
+       "tools": [],
+       "error": false
+      }
+     ]
+    },
+    "A2": {
+     "passed": false,
+     "repeat": 1,
+     "window": 8192,
+     "steps": [
+      {
+       "step": 1,
+       "prompt": 4816,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 2,
+       "prompt": 5151,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 3,
+       "prompt": 5490,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 4,
+       "prompt": 5645,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 5,
+       "prompt": 6203,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 6,
+       "prompt": 6331,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 7,
+       "prompt": 6889,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 8,
+       "prompt": 7017,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 9,
+       "prompt": 7575,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 10,
+       "prompt": 7711,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 11,
+       "prompt": 3763,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 12,
+       "prompt": 3899,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      }
+     ]
+    },
+    "B": {
+     "passed": true,
+     "repeat": 1,
+     "window": 8192,
+     "steps": [
+      {
+       "step": 1,
+       "prompt": 5043,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 2,
+       "prompt": 5380,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 3,
+       "prompt": 5445,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 4,
+       "prompt": 5964,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 5,
+       "prompt": 6033,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 6,
+       "prompt": 6221,
+       "tools": [],
+       "error": false
+      }
+     ]
+    }
+   }
+  },
+  {
+   "campaign": "step1b_all_tasks_7b_deterministic",
+   "model": "qwen2.5:7b",
+   "gpu": "GPU",
+   "task": "fix_retry_counter",
+   "score": [
+    1.0,
+    1.0,
+    0.782
+   ],
+   "lanes": {
+    "A1": {
+     "runs": 1,
+     "passed": 0,
+     "rate": 0.0,
+     "prompt_tokens": 182121,
+     "wall_s": 52.6,
+     "reloads": 0,
+     "fidelity_fallbacks": 0,
+     "compactions": 0
+    },
+    "A2": {
+     "runs": 1,
+     "passed": 0,
+     "rate": 0.0,
+     "prompt_tokens": 72254,
+     "wall_s": 55.1,
+     "reloads": 0,
+     "fidelity_fallbacks": 0,
+     "compactions": 0
+    },
+    "B": {
+     "runs": 1,
+     "passed": 1,
+     "rate": 1.0,
+     "prompt_tokens": 39657,
+     "wall_s": 19.4,
+     "reloads": 0,
+     "fidelity_fallbacks": 0,
+     "compactions": 0
+    }
+   },
+   "traces": {
+    "A1": {
+     "passed": false,
+     "repeat": 1,
+     "window": 32768,
+     "steps": [
+      {
+       "step": 1,
+       "prompt": 13847,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 2,
+       "prompt": 14168,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 3,
+       "prompt": 14252,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 4,
+       "prompt": 14576,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 5,
+       "prompt": 15007,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 6,
+       "prompt": 15175,
+       "tools": [],
+       "error": false
+      },
+      {
+       "step": 7,
+       "prompt": 15199,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 8,
+       "prompt": 15519,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 9,
+       "prompt": 15684,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 10,
+       "prompt": 16008,
+       "tools": [],
+       "error": false
+      },
+      {
+       "step": 11,
+       "prompt": 16286,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 12,
+       "prompt": 16400,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      }
+     ]
+    },
+    "A2": {
+     "passed": false,
+     "repeat": 1,
+     "window": 8192,
+     "steps": [
+      {
+       "step": 1,
+       "prompt": 4816,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 2,
+       "prompt": 5135,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 3,
+       "prompt": 5459,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 4,
+       "prompt": 5577,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 5,
+       "prompt": 5689,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 6,
+       "prompt": 5805,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 7,
+       "prompt": 5938,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 8,
+       "prompt": 6051,
+       "tools": [],
+       "error": false
+      },
+      {
+       "step": 9,
+       "prompt": 6510,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 10,
+       "prompt": 6717,
+       "tools": [],
+       "error": false
+      },
+      {
+       "step": 11,
+       "prompt": 7135,
+       "tools": [],
+       "error": false
+      },
+      {
+       "step": 12,
+       "prompt": 7422,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      }
+     ]
+    },
+    "B": {
+     "passed": true,
+     "repeat": 1,
+     "window": 8192,
+     "steps": [
+      {
+       "step": 1,
+       "prompt": 5040,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 2,
+       "prompt": 5363,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 3,
+       "prompt": 5447,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 4,
+       "prompt": 5780,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 5,
+       "prompt": 5853,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 6,
+       "prompt": 5993,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 7,
+       "prompt": 6181,
+       "tools": [],
+       "error": false
+      }
+     ]
+    }
+   }
+  }
+ ],
+ "ablation": {
+  "id": "ablation_7b_t4",
+  "model": "qwen2.5:7b",
+  "gpu": "T4",
+  "repeats": 1,
+  "summary": {
+   "B": {
+    "runs": 8,
+    "passed": 6,
+    "rate": 0.75,
+    "prompt_tokens": 358133,
+    "wall_s": 269.3,
+    "reloads": 0,
+    "fidelity_fallbacks": 10,
+    "compactions": 16
+   },
+   "B:no_semantic": {
+    "runs": 8,
+    "passed": 4,
+    "rate": 0.5,
+    "prompt_tokens": 390610,
+    "wall_s": 296.7,
+    "reloads": 0,
+    "fidelity_fallbacks": 18,
+    "compactions": 22
+   },
+   "B:no_state": {
+    "runs": 8,
+    "passed": 5,
+    "rate": 0.625,
+    "prompt_tokens": 365200,
+    "wall_s": 184.1,
+    "reloads": 0,
+    "fidelity_fallbacks": 4,
+    "compactions": 12
+   },
+   "B:no_fidelity": {
+    "runs": 8,
+    "passed": 4,
+    "rate": 0.5,
+    "prompt_tokens": 393355,
+    "wall_s": 257.7,
+    "reloads": 0,
+    "fidelity_fallbacks": 0,
+    "compactions": 13
+   },
+   "B:no_evict": {
+    "runs": 7,
+    "passed": 1,
+    "rate": 0.143,
+    "prompt_tokens": 406082,
+    "wall_s": 397.1,
+    "reloads": 0,
+    "fidelity_fallbacks": 5,
+    "compactions": 16
+   },
+   "B:no_offload": {
+    "runs": 7,
+    "passed": 5,
+    "rate": 0.714,
+    "prompt_tokens": 170296,
+    "wall_s": 165.3,
+    "reloads": 0,
+    "fidelity_fallbacks": 4,
+    "compactions": 16
+   }
+  },
+  "per_task": {
+   "fix_failing_sum": {
+    "B": {
+     "passed": 1,
+     "runs": 1
+    },
+    "B:no_semantic": {
+     "passed": 1,
+     "runs": 1
+    },
+    "B:no_state": {
+     "passed": 1,
+     "runs": 1
+    },
+    "B:no_fidelity": {
+     "passed": 1,
+     "runs": 1
+    },
+    "B:no_evict": {
+     "passed": 0,
+     "runs": 1
+    },
+    "B:no_offload": {
+     "passed": 1,
+     "runs": 1
+    }
+   },
+   "repair_json_reader": {
+    "B": {
+     "passed": 1,
+     "runs": 1
+    },
+    "B:no_semantic": {
+     "passed": 1,
+     "runs": 1
+    },
+    "B:no_state": {
+     "passed": 1,
+     "runs": 1
+    },
+    "B:no_fidelity": {
+     "passed": 1,
+     "runs": 1
+    },
+    "B:no_evict": {
+     "passed": 1,
+     "runs": 1
+    },
+    "B:no_offload": {
+     "passed": 1,
+     "runs": 1
+    }
+   },
+   "fix_path_join": {
+    "B": {
+     "passed": 1,
+     "runs": 1
+    },
+    "B:no_semantic": {
+     "passed": 1,
+     "runs": 1
+    },
+    "B:no_state": {
+     "passed": 1,
+     "runs": 1
+    },
+    "B:no_fidelity": {
+     "passed": 1,
+     "runs": 1
+    },
+    "B:no_evict": {
+     "passed": 0,
+     "runs": 1
+    },
+    "B:no_offload": {
+     "passed": 0,
+     "runs": 1
+    }
+   },
+   "preserve_false_values": {
+    "B": {
+     "passed": 0,
+     "runs": 1
+    },
+    "B:no_semantic": {
+     "passed": 0,
+     "runs": 1
+    },
+    "B:no_state": {
+     "passed": 1,
+     "runs": 1
+    },
+    "B:no_fidelity": {
+     "passed": 0,
+     "runs": 1
+    },
+    "B:no_evict": {
+     "passed": 0,
+     "runs": 1
+    },
+    "B:no_offload": {
+     "passed": 0,
+     "runs": 1
+    }
+   },
+   "fix_retry_counter": {
+    "B": {
+     "passed": 1,
+     "runs": 1
+    },
+    "B:no_semantic": {
+     "passed": 0,
+     "runs": 1
+    },
+    "B:no_state": {
+     "passed": 0,
+     "runs": 1
+    },
+    "B:no_fidelity": {
+     "passed": 0,
+     "runs": 1
+    },
+    "B:no_evict": {
+     "passed": 0,
+     "runs": 1
+    },
+    "B:no_offload": {
+     "passed": 1,
+     "runs": 1
+    }
+   },
+   "implement_stable_sort": {
+    "B": {
+     "passed": 0,
+     "runs": 1
+    },
+    "B:no_semantic": {
+     "passed": 0,
+     "runs": 1
+    },
+    "B:no_state": {
+     "passed": 0,
+     "runs": 1
+    },
+    "B:no_fidelity": {
+     "passed": 0,
+     "runs": 1
+    },
+    "B:no_evict": {
+     "passed": 0,
+     "runs": 1
+    },
+    "B:no_offload": {
+     "passed": 1,
+     "runs": 1
+    }
+   },
+   "fix_cache_key": {
+    "B": {
+     "passed": 1,
+     "runs": 1
+    },
+    "B:no_semantic": {
+     "passed": 0,
+     "runs": 1
+    },
+    "B:no_state": {
+     "passed": 1,
+     "runs": 1
+    },
+    "B:no_fidelity": {
+     "passed": 0,
+     "runs": 1
+    },
+    "B:no_evict": {
+     "passed": 0,
+     "runs": 1
+    },
+    "B:no_offload": {
+     "passed": 1,
+     "runs": 1
+    }
+   },
+   "fix_csv_parser": {
+    "B": {
+     "passed": 1,
+     "runs": 1
+    },
+    "B:no_semantic": {
+     "passed": 1,
+     "runs": 1
+    },
+    "B:no_state": {
+     "passed": 0,
+     "runs": 1
+    },
+    "B:no_fidelity": {
+     "passed": 1,
+     "runs": 1
+    }
+   }
+  }
+ },
+ "crewai": {
+  "id": "crewai_ab_14b_l4",
+  "model": "qwen2.5:14b",
+  "gpu": "L4",
+  "summary": {
+   "incident/contextgc": {
+    "runs": 1,
+    "passed": 0,
+    "success_rate": 0.0,
+    "total_wall_s": 164.1,
+    "timeouts": 0,
+    "prompt_tokens": 36822,
+    "gc_saved_pct_avg": 0.0
+   }
+  }
+ }
+}

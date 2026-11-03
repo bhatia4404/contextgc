@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ContextGC Results</title>
+<meta name="description" content="ContextGC keeps small local models on task inside small context windows. Measured results on GPUs.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <span class="brand">ContextGC</span>
+  <nav>
+    <a href="./" aria-current="page">Results</a>
+    <a href="live">Run it live</a>
+    <a href="https://github.com/bhatia4404/contextgc" id="gh">Code</a>
+  </nav>
+</header>
+<main>
+  <h1>Small models, small windows, still on task.</h1>
+  <p class="lead">ContextGC is a proxy between an AI agent and Ollama. Before every model call it cleans the
+    agent's history: duplicates go, huge tool outputs move to disk behind a pointer, and old low-value turns are
+    evicted only under pressure. The agent needs no code changes, only a new URL.</p>
+
+  <div class="tiles" id="tiles"></div>
+  <p class="muted" id="tilesNote"></p>
+
+  <h2>The problem, and what ContextGC does</h2>
+  <div class="steps">
+    <div><h3>Agents resend everything</h3>Every step sends the whole history again: file reads, logs, test output.
+      It grows past the model's context window within a few steps.</div>
+    <div><h3>Ollama cuts silently</h3>When the prompt is too long, the oldest messages are dropped without warning.
+      The oldest message is the task itself, so the agent forgets what it was asked to do.</div>
+    <div><h3>ContextGC cleans first</h3>It keeps the task and recent work, moves bulky tool output behind a short
+      pointer, and drops old filler, so the prompt fits and nothing important is cut.</div>
+  </div>
+
+  <h2>Three highlighted tasks</h2>
+  <p class="sub">Picked by a fixed rule, not by hand: the tasks where ContextGC's pass rate beat the raw small window
+    by the most, then the raw big window, then token savings. Every other task is in the full grid below,
+    including the ones where ContextGC lost.</p>
+  <div id="highlights"></div>
+
+  <h2>All results</h2>
+  <p class="sub">The same agent, tasks and settings in three lanes. Each task ran several times per lane; a
+    pass means an independent pytest run passed and the tests were not edited.</p>
+  <div class="card"><h3>Pass rate by model</h3><div id="passChart"></div></div>
+  <div class="card"><h3>Prompt tokens processed by model</h3>
+    <p class="muted" style="margin:0">All runs together. Fewer tokens means less GPU work per task.</p>
+    <div id="tokChart"></div></div>
+  <div id="campaignTables"></div>
+
+  <h2>Which parts of ContextGC matter</h2>
+  <p class="sub">Each variant switches off exactly one stage of the pipeline and reruns every task. A big drop
+    means that stage is doing real work.</p>
+  <div class="card"><div id="ablChart"></div><div id="ablNote" class="muted"></div></div>
+
+  <h2>CrewAI, a real agent framework</h2>
+  <p class="sub">Two CrewAI crews (incident response, code maintenance) on a demo repository with a 2,000-line outage
+    log. CrewAI 1.15 has its own context handling: it parks large tool results in files. We ran it both with that
+    feature on and with it off, each against raw Ollama and through ContextGC.</p>
+  <div class="card"><div class="tablewrap" id="crewTable"></div><div id="crewNote" class="muted"></div></div>
+
+  <h2>How to read these numbers</h2>
+  <div class="card">
+    <ul>
+      <li>Same model, prompt, tools, temperature 0 and seed in every lane. Only the context handling differs.</li>
+      <li>Even at temperature 0, identical runs on a GPU can end differently. Treat gaps of one or two runs as noise.</li>
+      <li>The 8 tasks are small Python repair jobs we wrote, with earlier-session noise added to the history.
+        Results on other workloads may differ.</li>
+      <li>"Raw, big window" never ran out of room here, so it is what running the model normally looks like.</li>
+    </ul>
+    <p class="muted" id="gen"></p>
+  </div>
+</main>
+<footer>ContextGC · results from GPU runs on Modal</footer>
+<script src="charts.js"></script>
+<script>
+const TASKS = {
+  fix_failing_sum: "Fix a failing sum function",
+  repair_json_reader: "Missing optional JSON field should become an empty list",
+  fix_path_join: "Path builder must handle a trailing slash",
+  preserve_false_values: "Config lookup must keep false, 0 and empty values",
+  fix_retry_counter: "Retry counter must reset after success",
+  implement_stable_sort: "Implement a stable sort by timestamp",
+  fix_cache_key: "Cache keys must not collide across namespaces",
+  fix_csv_parser: "Commas inside quoted CSV fields stay in the field",
+};
+const passText = s => s ? `${s.passed}/${s.runs}` : "–";
+
+function tiles(data) {
+  const c = data.campaigns;
+  const sum = k => c.reduce((a, x) => a + (x.summary[k]?.passed || 0), 0);
+  const runs = k => c.reduce((a, x) => a + (x.summary[k]?.runs || 0), 0);
+  const tok = k => c.reduce((a, x) => a + (x.summary[k]?.prompt_tokens || 0), 0);
+  const all = c.reduce((a, x) => a + Object.values(x.summary).reduce((b, s) => b + s.runs, 0), 0);
+  const t = [
+    ["ContextGC, 8k window", pct(sum("B") / runs("B")), `${sum("B")} of ${runs("B")} runs passed`],
+    ["Raw Ollama, same 8k window", pct(sum("A2") / runs("A2")), `${sum("A2")} of ${runs("A2")} runs passed`],
+    ["Raw Ollama, 32k window", pct(sum("A1") / runs("A1")), `${sum("A1")} of ${runs("A1")} runs passed`],
+    ["Tokens vs 32k window", pct(tok("B") / tok("A1")), `${fmt(tok("B"))} vs ${fmt(tok("A1"))} prompt tokens`],
+  ];
+  document.getElementById("tiles").innerHTML = t.map(([l, v, n]) =>
+    `<div class="tile"><div class="label">${l}</div><div class="value">${v}</div><div class="note">${n}</div></div>`).join("");
+  document.getElementById("tilesNote").textContent =
+    `Pass rates across ${c.length} model${c.length > 1 ? "s" : ""} (${c.map(x => x.model).join(", ")}), ` +
+    `8 coding tasks, ${all} agent runs in total.`;
+}
+
+function highlightCards(data) {
+  const host = document.getElementById("highlights");
+  data.highlights.forEach((h, i) => {
+    const card = document.createElement("div");
+    card.className = "card";
+    const rows = ["A1", "A2", "B"].filter(k => h.lanes[k]).map(k => {
+      const s = h.lanes[k], tr = h.traces[k];
+      return `<tr><td class="l"><span class="sw" style="background:${LANES[k].color}"></span>${LANES[k].name}</td>` +
+        `<td>${passText(s)}</td><td>${fmt(s.prompt_tokens / s.runs)}</td>` +
+        `<td>${tr ? tr.steps.length : "–"}</td></tr>`;
+    }).join("");
+    card.innerHTML = `<h3>${i + 1}. ${TASKS[h.task] || h.task}</h3>
+      <p class="muted" style="margin:0 0 10px">${h.model} on ${h.gpu} · task <code>${h.task}</code></p>
+      <div class="grid2">
+        <div class="tablewrap"><table><thead><tr><th>Lane</th><th>Passed</th><th>Tokens / run</th><th>Steps (shown run)</th></tr></thead>
+          <tbody>${rows}</tbody></table>
+          <p class="muted">${story(h)}</p></div>
+        <div><div class="muted" style="font-size:13px">Prompt size at each step of one run per lane</div><div class="ch"></div></div>
+      </div>`;
+    host.appendChild(card);
+    const series = ["A1", "A2", "B"].filter(k => h.traces[k]).map(k => ({
+      key: k, color: LANES[k].color, endLabel: h.traces[k].passed ? "pass" : "fail",
+      points: h.traces[k].steps.map(s => ({ x: s.step, y: s.prompt, note: s.tools.join(", ") || (s.error ? "error" : "reply") })),
+    }));
+    lineChart(card.querySelector(".ch"), series, {
+      xLabel: "agent step", refs: [{ y: 8192, label: "8k window" }], label: `Prompt tokens per step for ${h.task}` });
+  });
+}
+
+function story(h) {
+  const a2 = h.traces.A2, b = h.traces.B;
+  const over = a2 && a2.steps.some(s => (s.prompt || 0) >= 7800);
+  return (over ? "The raw 8k run hit the window, so Ollama cut the oldest messages, starting with the task. " : "") +
+    (b ? `Through ContextGC the prompt stayed under the window and the run ${b.passed ? "passed" : "failed"} in ${b.steps.length} steps.` : "");
+}
+
+function allResults(data) {
+  const c = data.campaigns;
+  groupedBars(document.getElementById("passChart"), c.map(x => ({
+    label: `${x.model} · ${x.gpu}`,
+    bars: ["A1", "A2", "B"].filter(k => x.summary[k]).map(k => ({
+      key: k, value: x.summary[k].rate, text: pct(x.summary[k].rate),
+      tip: `${x.summary[k].passed} of ${x.summary[k].runs} runs passed` })),
+  })), { max: 1, tick: v => pct(v), label: "Pass rate per lane and model" });
+  groupedBars(document.getElementById("tokChart"), c.map(x => ({
+    label: `${x.model} · ${x.gpu}`,
+    bars: ["A1", "A2", "B"].filter(k => x.summary[k]).map(k => ({
+      key: k, value: x.summary[k].prompt_tokens, text: fmt(x.summary[k].prompt_tokens),
+      tip: `${fmt(x.summary[k].prompt_tokens)} prompt tokens over ${x.summary[k].runs} runs` })),
+  })), { label: "Prompt tokens per lane and model" });
+  const host = document.getElementById("campaignTables");
+  for (const x of c) {
+    const lanes = ["A1", "A2", "B"].filter(k => x.summary[k]);
+    const cell = s => {
+      if (!s) return "<td>–</td>";
+      const r = s.passed / s.runs;
+      const bg = r >= 0.67 ? "rgba(12,163,12,0.16)" : r > 0 ? "rgba(250,178,25,0.20)" : "rgba(208,59,59,0.14)";
+      return `<td><span class="cell" style="background:${bg}">${s.passed}/${s.runs}</span></td>`;
+    };
+    const d = document.createElement("div");
+    d.className = "card";
+    d.innerHTML = `<h3>${x.model} on ${x.gpu}</h3>
+      <p class="muted" style="margin:0 0 8px">Windows: big ${fmt(x.windows.big)}, small ${fmt(x.windows.small)} tokens ·
+        ${x.repeats} repeat${x.repeats > 1 ? "s" : ""} per task and lane</p>
+      <div class="tablewrap"><table><thead><tr><th>Task</th>${lanes.map(k =>
+        `<th><span class="sw" style="background:${LANES[k].color}"></span>${LANES[k].short}</th>`).join("")}</tr></thead><tbody>
+      ${Object.entries(x.per_task).map(([t, l]) => `<tr><td class="l">${TASKS[t] || t}</td>${lanes.map(k => cell(l[k])).join("")}</tr>`).join("")}
+      <tr><td class="l"><b>All tasks</b></td>${lanes.map(k => `<td><b>${passText(x.summary[k])}</b></td>`).join("")}</tr>
+      <tr><td class="l muted">Prompt tokens</td>${lanes.map(k => `<td class="muted">${fmt(x.summary[k].prompt_tokens)}</td>`).join("")}</tr>
+      <tr><td class="l muted">Model reloads</td>${lanes.map(k => `<td class="muted">${x.summary[k].reloads ?? "–"}</td>`).join("")}</tr>
+      </tbody></table></div>`;
+    host.appendChild(d);
+  }
+}
+
+const STAGE = {
+  B: "Full ContextGC", "B:no_semantic": "without semantic merging", "B:no_state": "without the state anchor",
+  "B:no_fidelity": "without the loop detector", "B:no_evict": "without eviction", "B:no_offload": "without offload",
+  "B:no_dedup": "without dedup", "B:no_reinject": "without re-inject",
+};
+function ablation(data) {
+  const a = data.ablation;
+  if (!a) { document.getElementById("ablChart").innerHTML = "<p class='muted'>Not run yet.</p>"; return; }
+  const rows = Object.entries(a.summary).map(([k, s]) => ({
+    label: STAGE[k] || k, value: s.rate || 0, text: `${pct(s.rate)} · ${s.passed}/${s.runs}`,
+    color: k === "B" ? "var(--s3)" : "var(--s1)",
+    tip: `${s.passed} of ${s.runs} runs passed · ${fmt(s.prompt_tokens)} prompt tokens` }));
+  hBars(document.getElementById("ablChart"), rows, { max: 1, label: "Pass rate with one stage switched off" });
+  document.getElementById("ablNote").textContent =
+    `${a.model} on ${a.gpu}, all 8 tasks, ${a.repeats} repeats per variant. Green is the full pipeline.`;
+}
+
+function crew(data) {
+  const c = data.crewai;
+  if (!c) { document.getElementById("crewTable").innerHTML = "<p class='muted'>Not run yet.</p>"; return; }
+  const name = l => ({ raw: "Raw Ollama", contextgc: "ContextGC" }[l.replace("-nocrew", "")]) +
+    (l.endsWith("-nocrew") ? ", CrewAI's own handling off" : ", CrewAI's own handling on");
+  const rows = Object.entries(c.summary).map(([k, s]) => {
+    const [agent, lane] = k.split("/");
+    return `<tr><td class="l">${agent === "incident" ? "Incident response" : "Code maintenance"}</td><td class="l">${name(lane)}</td>` +
+      `<td>${s.passed}/${s.runs}</td><td>${fmt(s.prompt_tokens)}</td><td>${s.gc_saved_pct_avg == null ? "–" : s.gc_saved_pct_avg + "%"}</td>` +
+      `<td>${s.timeouts ?? 0}</td></tr>`;
+  }).join("");
+  document.getElementById("crewTable").innerHTML = `<table><thead><tr><th>Crew</th><th class="l">Setup</th><th>Passed</th>` +
+    `<th>Prompt tokens</th><th>ContextGC saved</th><th>Timeouts</th></tr></thead><tbody>${rows}</tbody></table>`;
+  document.getElementById("crewNote").textContent = `${c.model} on ${c.gpu}, 8k window in every setup.`;
+}
+
+fetch("showcase.json").then(r => r.json()).then(data => {
+  tiles(data); highlightCards(data); allResults(data); ablation(data); crew(data);
+  document.getElementById("gen").textContent = `Data generated ${data.generated}.`;
+  if (data.repo) document.getElementById("gh").href = data.repo;
+}).catch(e => { document.querySelector("main").insertAdjacentHTML("afterbegin", `<p class="callout">Could not load results: ${esc(e)}</p>`); });
+</script>
+</body>
+</html>

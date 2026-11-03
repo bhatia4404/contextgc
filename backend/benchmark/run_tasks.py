@@ -52,6 +52,8 @@ from app import config  # noqa: E402
 from app.core import capacity  # noqa: E402
 
 RESULTS_DIR = Path(os.getenv("CONTEXTGC_RESULTS_DIR") or ROOT / "results")
+# One JSON line per agent step on stdout (the hosted live-run page streams them).
+STEP_LOG = os.getenv("CONTEXTGC_STEP_LOG") == "1"
 
 SYSTEM = (
     "You are a coding agent working in a small Python repository. Use the tools to "
@@ -235,6 +237,8 @@ def run_task(client: httpx.Client, base: str, model: str, task, window: int,
                           "prompt_eval_count": row["prompt_eval_count"],
                           "prompt_eval_cached_count": row["prompt_eval_cached_count"],
                           "prompt_eval_s": round((row["prompt_eval_duration"] or 0) / 1e9, 2)})
+            if STEP_LOG:
+                print("[step] " + json.dumps({"run": run_id, **steps[-1]}), flush=True)
             if not calls:
                 if "DONE" in assistant["content"].upper():
                     ok, output = task.run_checker(root)

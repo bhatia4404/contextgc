@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ContextGC Live Run</title>
+<meta name="description" content="Start a real ContextGC agent run on a cloud GPU and watch it step by step.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <span class="brand">ContextGC</span>
+  <nav>
+    <a href="./">Results</a>
+    <a href="live" aria-current="page">Run it live</a>
+    <a href="https://github.com/bhatia4404/contextgc">Code</a>
+  </nav>
+</header>
+<main>
+  <h1>Run it yourself</h1>
+  <p class="lead">This starts a real agent on a cloud GPU (NVIDIA T4, model qwen2.5:7b). It works on one coding task,
+    once through raw Ollama and once through ContextGC, with the same 8k context window. You can watch every step.</p>
+  <p class="callout">The first minute or two is the GPU starting and the model loading. Each lane then takes about
+    1–4 minutes. Only one run happens at a time; if someone else's run is going, you'll watch that one.</p>
+
+  <div class="card" id="form">
+    <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:end">
+      <label style="flex:1 1 280px">Task<br><select id="task" style="width:100%"></select></label>
+      <button class="primary" id="start">Start run</button>
+    </div>
+    <div style="margin-top:12px">
+      <label class="chk"><input type="checkbox" value="A2" checked> Raw Ollama, 8k window</label>
+      <label class="chk"><input type="checkbox" value="B" checked> ContextGC, 8k window</label>
+      <label class="chk"><input type="checkbox" value="A1"> Raw Ollama, 32k window (slower)</label>
+    </div>
+    <p class="muted" id="quota" style="margin:10px 0 0"></p>
+  </div>
+
+  <div id="runView" hidden>
+    <div class="card">
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between">
+        <h3 id="runTitle" style="margin:0"></h3>
+        <span class="badge" id="runStatus"></span>
+      </div>
+      <p class="muted" id="runMsg" style="margin:6px 0 0"></p>
+    </div>
+    <div class="card">
+      <h3>Prompt size at each step</h3>
+      <p class="muted" style="margin:0">The dashed line is the 8k window. Above it, raw Ollama silently drops the oldest messages.</p>
+      <div id="live"></div>
+    </div>
+    <div class="card"><h3>Result</h3><div class="tablewrap" id="resTable"><p class="muted">Waiting for the first lane to finish…</p></div></div>
+    <div class="card"><details><summary>Step log</summary><div class="log" id="log"></div></details></div>
+  </div>
+
+  <h2>Recent runs</h2>
+  <div class="card"><div class="tablewrap" id="recent"><p class="muted">Loading…</p></div></div>
+</main>
+<footer>Runs on Modal · the GPU shuts down by itself after each run</footer>
+<script src="charts.js"></script>
+<script>
+const TASKS = {
+  fix_path_join: "Path builder must handle a trailing slash",
+  preserve_false_values: "Config lookup must keep false, 0 and empty values",
+  fix_retry_counter: "Retry counter must reset after success",
+  repair_json_reader: "Missing optional JSON field should become an empty list",
+  fix_csv_parser: "Commas inside quoted CSV fields stay in the field",
+  fix_failing_sum: "Fix a failing sum function",
+  implement_stable_sort: "Implement a stable sort by timestamp",
+  fix_cache_key: "Cache keys must not collide across namespaces",
+};
+const STATUS = { queued: "Waiting for a GPU", starting: "Starting GPU and model", running: "Running", done: "Finished", error: "Failed" };
+const $ = id => document.getElementById(id);
+$("task").innerHTML = Object.entries(TASKS).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
+let current = null, timer = null;
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.detail || r.statusText);
+  return body;
+}
+
+$("start").onclick = async () => {
+  const lanes = [...document.querySelectorAll("#form input:checked")].map(i => i.value);
+  if (!lanes.length) return alert("Pick at least one lane.");
+  $("start").disabled = true;
+  try {
+    const r = await api("api/run", { method: "POST", headers: { "content-type": "application/json" },
+                                     body: JSON.stringify({ task: $("task").value, lanes }) });
+    if (r.joined) $("quota").textContent = "Another run was already going, so you're watching that one.";
+    watch(r.id);
+  } catch (e) { $("quota").textContent = e.message; $("start").disabled = false; }
+};
+
+function watch(id) {
+  current = id;
+  history.replaceState(null, "", "?run=" + id);
+  $("runView").hidden = false;
+  clearInterval(timer);
+  poll();
+  timer = setInterval(poll, 2500);
+}
+
+async function poll() {
+  let run;
+  try { run = await api("api/run/" + current); } catch (e) { $("runMsg").textContent = e.message; return; }
+  const lanes = run.lanes;
+  $("runTitle").textContent = `${TASKS[run.task] || run.task}`;
+  $("runStatus").textContent = STATUS[run.status] || run.status;
+  $("runMsg").textContent = run.message || "";
+  lineChart($("live"), lanes.filter(k => (run.steps[k] || []).length).map(k => ({
+    key: k, color: LANES[k].color,
+    endLabel: run.results[k] ? (run.results[k].passed ? "pass" : "fail") : "",
+    points: run.steps[k].map(s => ({ x: s.step, y: s.prompt, note: (s.tools || []).join(", ") || (s.error ? "error" : "reply") })),
+  })), { xLabel: "agent step", minX: 12, refs: [{ y: 8192, label: "8k window" }], label: "Live prompt tokens per step" });
+  if (!lanes.some(k => (run.steps[k] || []).length)) $("live").insertAdjacentHTML("beforeend", "<p class='muted'>No steps yet.</p>");
+  const done = lanes.filter(k => run.results[k]);
+  if (done.length) {
+    $("resTable").innerHTML = `<table><thead><tr><th>Lane</th><th>Result</th><th>Steps</th><th>Prompt tokens</th><th>Time</th><th>Compactions</th></tr></thead><tbody>` +
+      lanes.map(k => {
+        const r = run.results[k];
+        if (!r) return `<tr><td class="l"><span class="sw" style="background:${LANES[k].color}"></span>${LANES[k].name}</td><td colspan="5" class="muted l">${run.status === "done" || run.status === "error" ? "did not run" : "running…"}</td></tr>`;
+        return `<tr><td class="l"><span class="sw" style="background:${LANES[k].color}"></span>${LANES[k].name}</td>` +
+          `<td class="l"><span class="${r.passed ? "pass" : "fail"}">${r.passed ? "pass" : "fail"}</span></td><td>${r.steps}</td>` +
+          `<td>${fmt(r.prompt_tokens)}</td><td>${r.wall_s}s</td><td>${r.compactions ?? "–"}</td></tr>`;
+      }).join("") + "</tbody></table>";
+  }
+  $("log").textContent = (run.log || []).join("\n");
+  if (run.status === "done" || run.status === "error") { clearInterval(timer); $("start").disabled = false; recent(); quota(); }
+}
+
+async function recent() {
+  try {
+    const rows = await api("api/recent");
+    $("recent").innerHTML = rows.length ? `<table><thead><tr><th>When (UTC)</th><th>Task</th><th>Status</th>` +
+      `<th>Raw · 8k</th><th>ContextGC · 8k</th><th>Raw · 32k</th></tr></thead><tbody>` + rows.map(r => {
+        const res = k => r.results && r.results[k] ? `<span class="${r.results[k].passed ? "pass" : "fail"}">${r.results[k].passed ? "pass" : "fail"}</span>` : "–";
+        return `<tr><td class="l"><a href="?run=${r.id}">${r.created.slice(5, 16).replace("T", " ")}</a></td><td class="l">${TASKS[r.task] || r.task}</td>` +
+          `<td>${STATUS[r.status] || r.status}</td><td>${res("A2")}</td><td>${res("B")}</td><td>${res("A1")}</td></tr>`;
+      }).join("") + "</tbody></table>" : "<p class='muted'>No runs yet. Start the first one.</p>";
+    document.querySelectorAll("#recent a").forEach(a => a.onclick = ev => { ev.preventDefault(); watch(new URL(a.href).searchParams.get("run")); scrollTo(0, 0); });
+  } catch (e) { $("recent").innerHTML = `<p class="muted">${esc(e.message)}</p>`; }
+}
+async function quota() {
+  try {
+    const q = await api("api/status");
+    $("quota").textContent = `${q.today} of ${q.cap} runs used today.` + (q.busy ? " A run is in progress now." : "");
+  } catch (e) { /* page still works without it */ }
+}
+const fromUrl = new URLSearchParams(location.search).get("run");
+if (fromUrl) watch(fromUrl);
+recent(); quota();
+</script>
+</body>
+</html>
