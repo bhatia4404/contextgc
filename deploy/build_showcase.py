@@ -1,4 +1,4 @@
-"""Build deploy/site/showcase.json, the data behind the hosted judge site.
+"""Build deploy/data/showcase.json, the data the API serves to the judge site.
 
 Reads merged campaign files (backend/benchmark/merge_results.py output) and
 keeps what the site shows: per-lane totals for every model, the per-task grid,
@@ -22,7 +22,7 @@ import json
 import time
 from pathlib import Path
 
-SITE = Path(__file__).resolve().parent / "site"
+DATA = Path(__file__).resolve().parent / "data"
 LANES = ("A1", "A2", "B")
 REPO_URL = "https://github.com/bhatia4404/contextgc"
 
@@ -107,7 +107,7 @@ def main() -> None:
     ap.add_argument("--main", action="append", type=Path, default=[])
     ap.add_argument("--ablation", type=Path)
     ap.add_argument("--crewai", type=Path)
-    ap.add_argument("--out", type=Path, default=SITE / "showcase.json")
+    ap.add_argument("--out", type=Path, default=DATA / "showcase.json")
     a = ap.parse_args()
     load = lambda p: json.loads(p.read_text(encoding="utf-8"))  # noqa: E731
     mains = [load(p) for p in a.main]

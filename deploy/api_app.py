@@ -1,9 +1,10 @@
-"""The hosted judge site: measured results plus a live run on a real GPU.
+"""Backend API for the judge site (the React app in frontend/ is the front end).
 
-    python deploy/build_showcase.py ...      # refresh deploy/site/showcase.json
-    modal deploy deploy/showcase_app.py      # prints the public URL
+    python deploy/build_showcase.py ...      # refresh deploy/data/showcase.json
+    modal deploy deploy/api_app.py           # prints the API URL
 
-Pages: / (results from the GPU campaigns), /live (start a run and watch it).
+Endpoints: GET /api/showcase (measured results), POST /api/run (start a live
+run), GET /api/run/{id} (its progress), GET /api/recent, GET /api/status.
 The live run is one GPU container at a time (max_containers=1) with a daily
 cap, so a public page can never run up more than a few dollars a day:
 LIVE_DAILY_CAP runs x ~6 min of T4 (~$0.06 each).
@@ -49,9 +50,12 @@ gpu_image = (
                    ignore=["**/__pycache__", "**/.pytest_cache", "data", "benchmark/results", "*.log", "tmp_tel.json"])
 )
 web_image = (modal.Image.debian_slim(python_version="3.12").pip_install("fastapi[standard]")
-             .add_local_dir(str(HERE / "site"), "/site"))
+             .add_local_file(str(HERE / "data" / "showcase.json"), "/data/showcase.json"))
+# Origins allowed to call the API: the hosted React app and the Vite dev server.
+ALLOWED_ORIGINS = ["https://shivambhatia4404--contextgc-showcase-web.us-east.modal.run",
+                   "http://localhost:5173", "http://127.0.0.1:5173"]
 
-app = modal.App("contextgc-showcase")
+app = modal.App("contextgc-api")
 models_vol = modal.Volume.from_name("contextgc-models", create_if_missing=True)
 runs = modal.Dict.from_name("contextgc-live-runs", create_if_missing=True)
 
@@ -117,12 +121,14 @@ def live_run(key: str, task: str, lanes: list[str]) -> None:
 @app.function(image=web_image, max_containers=2)
 @modal.concurrent(max_inputs=50)
 @modal.asgi_app()
-def web():
+def api():
     from fastapi import Body, FastAPI, HTTPException
-    from fastapi.responses import FileResponse, JSONResponse
+    from fastapi.middleware.cors import CORSMiddleware
+    from fastapi.responses import FileResponse
 
     api = FastAPI(docs_url=None, redoc_url=None)
-    site = Path("/site")
+    api.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS,
+                       allow_methods=["GET", "POST"], allow_headers=["content-type"])
 
     def busy() -> str | None:
         key = runs.get("_current")
@@ -173,19 +179,8 @@ def web():
         day = "_count_" + time.strftime("%Y-%m-%d", time.gmtime())
         return {"today": runs.get(day, 0), "cap": LIVE_DAILY_CAP, "busy": bool(busy())}
 
-    @api.get("/")
-    def index():
-        return FileResponse(site / "index.html")
-
-    @api.get("/live")
-    def live():
-        return FileResponse(site / "live.html")
-
-    @api.get("/{name}")
-    def asset(name: str):
-        path = site / name
-        if name in ("style.css", "charts.js", "showcase.json") and path.exists():
-            return FileResponse(path, headers={"cache-control": "no-cache"})
-        return JSONResponse({"detail": "not found"}, 404)
+    @api.get("/api/showcase")
+    def showcase():
+        return FileResponse("/data/showcase.json", headers={"cache-control": "no-cache"})
 
     return api

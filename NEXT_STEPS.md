@@ -63,8 +63,10 @@ Work only on `main`; commit after each step that works.
   `-nocrew`), final_qwen14b_l4, final_llama8b_l4 (all 3 repeats). Fetch with
   `modal volume get contextgc-results <campaign> backend/benchmark/results/modal/`, merge with
   `backend/benchmark/merge_results.py`, then `deploy/build_showcase.py` and
-  `modal deploy deploy/showcase_app.py`.
-- Judge site: https://shivambhatia4404--contextgc-showcase-web.us-east.modal.run (results page +
+  `modal deploy deploy/api_app.py` (data) and `cd frontend && npm run build && modal deploy ../deploy/frontend_app.py` (UI).
+- Judge site: https://shivambhatia4404--contextgc-showcase-web.us-east.modal.run (React app in
+  frontend/, served by deploy/frontend_app.py; backend API deploy/api_app.py at
+  https://shivambhatia4404--contextgc-api-api.us-east.modal.run; results page +
   /live GPU run page, 1 T4 at a time, 25 runs/day cap). Workspace GPU limit is 10: live runs
   queue while campaigns run.
 - Phase 4 dashboard DONE: `/dashboard` (live gauges, prompt-size chart with compaction markers,
