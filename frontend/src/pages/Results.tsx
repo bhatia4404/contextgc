@@ -73,23 +73,31 @@ export default function Results() {
 }
 
 function Tiles({ data }: { data: Showcase }) {
-  const c = data.campaigns;
-  const sum = (k: LaneKey, f: "passed" | "runs" | "prompt_tokens") => c.reduce((a, x) => a + (x.summary[k]?.[f] || 0), 0);
-  const all = c.reduce((a, x) => a + Object.values(x.summary).reduce((b, s) => b + (s?.runs || 0), 0), 0);
+  // Headline: the first campaign (the model ContextGC was tuned on); every model is summarized right below.
+  const c = data.campaigns[0], sm = c.summary;
+  const rate = (k: LaneKey) => (sm[k] ? sm[k]!.passed / sm[k]!.runs : null);
   const tiles: [string, string, string][] = [
-    ["ContextGC, 8k window", pct(sum("B", "passed") / sum("B", "runs")), `${sum("B", "passed")} of ${sum("B", "runs")} runs passed`],
-    ["Raw Ollama, same 8k window", pct(sum("A2", "passed") / sum("A2", "runs")), `${sum("A2", "passed")} of ${sum("A2", "runs")} runs passed`],
-    ["Raw Ollama, 32k window", pct(sum("A1", "passed") / sum("A1", "runs")), `${sum("A1", "passed")} of ${sum("A1", "runs")} runs passed`],
-    ["Tokens vs 32k window", pct(sum("B", "prompt_tokens") / sum("A1", "prompt_tokens")),
-      `${fmt(sum("B", "prompt_tokens"))} vs ${fmt(sum("A1", "prompt_tokens"))} prompt tokens`],
+    ["ContextGC, 8k window", pct(rate("B")), `${passText(sm.B)} runs passed`],
+    ["Raw Ollama, same 8k window", pct(rate("A2")), `${passText(sm.A2)} runs passed`],
+    ["Raw Ollama, 32k window", pct(rate("A1")), `${passText(sm.A1)} runs passed`],
+    ["Tokens vs 32k window", pct((sm.B?.prompt_tokens || 0) / (sm.A1?.prompt_tokens || 1)),
+      `${fmt(sm.B?.prompt_tokens)} vs ${fmt(sm.A1?.prompt_tokens)} prompt tokens`],
   ];
+  const others = data.campaigns.slice(1);
   return <>
     <div className="tiles">
       {tiles.map(([l, v, n]) => <div className="tile" key={l}>
         <div className="label">{l}</div><div className="value">{v}</div><div className="note">{n}</div></div>)}
     </div>
-    <p className="muted">Pass rates across {c.length} model{c.length > 1 ? "s" : ""} ({c.map(x => x.model).join(", ")}),
-      8 coding tasks, {all} agent runs in total.</p>
+    <p className="muted">{c.model} on {c.gpu}: 8 coding tasks, {c.repeats} runs each per lane. This is the model where
+      ContextGC helps most.</p>
+    {others.length > 0 && <div className="callout">
+      <b>Across models the gain is not universal.</b>{" "}
+      {data.campaigns.map(x => `${x.model}: ContextGC ${passText(x.summary.B)}, raw 8k ${passText(x.summary.A2)}, ` +
+        `raw 32k ${passText(x.summary.A1)}`).join(" · ")}.{" "}
+      On the stronger and the non-Qwen model, simply losing the old history (raw 8k) worked better than ContextGC's
+      curated history. ContextGC used about a third of the 32k window's prompt tokens on every model.
+    </div>}
   </>;
 }
 
@@ -217,7 +225,9 @@ function Crew({ data }: { data: Showcase }) {
             <td>{s.gc_saved_pct_avg == null ? "–" : s.gc_saved_pct_avg + "%"}</td><td>{s.timeouts ?? 0}</td></tr>;
         })}</tbody>
       </table></div>
-      <p className="muted">{c.model} on {c.gpu}, 8k window in every setup.</p>
+      <p className="muted">{c.model} on {c.gpu}, 8k window in every setup. Prompts stayed small in every setup: the
+        crews' own file tools return at most the last 16k characters, so the window never filled and ContextGC had
+        little to remove (0–3%). This test does not stress the context window; the coding benchmark above does.</p>
     </div>
   );
 }

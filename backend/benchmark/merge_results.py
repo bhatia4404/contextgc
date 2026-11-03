@@ -32,7 +32,12 @@ def crew_summary(rows: list[dict]) -> dict:
 
 def merge(folder: Path) -> dict:
     runs, args, machine = [], None, None
+    # Newest file per task folder only: a preempted container is restarted by
+    # Modal and leaves the partial file of its first attempt behind.
+    newest: dict[Path, Path] = {}
     for path in sorted(folder.rglob("*.json")):
+        newest[path.parent] = path
+    for path in newest.values():
         data = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(data, dict) or "runs" not in data:
             continue

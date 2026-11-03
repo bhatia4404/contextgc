@@ -301,6 +301,606 @@
      }
     }
    }
+  },
+  {
+   "id": "final_qwen14b_a10g",
+   "model": "qwen2.5:14b",
+   "gpu": "A10G",
+   "windows": {
+    "big": 32768,
+    "small": 8192
+   },
+   "repeats": 3,
+   "summary": {
+    "A1": {
+     "runs": 24,
+     "passed": 15,
+     "rate": 0.625,
+     "prompt_tokens": 2985895,
+     "wall_s": 1021.7,
+     "reloads": 0,
+     "fidelity_fallbacks": 0,
+     "compactions": 0
+    },
+    "A2": {
+     "runs": 24,
+     "passed": 19,
+     "rate": 0.792,
+     "prompt_tokens": 1013472,
+     "wall_s": 525.0,
+     "reloads": 0,
+     "fidelity_fallbacks": 0,
+     "compactions": 0
+    },
+    "B": {
+     "runs": 24,
+     "passed": 15,
+     "rate": 0.625,
+     "prompt_tokens": 1098564,
+     "wall_s": 735.0,
+     "reloads": 0,
+     "fidelity_fallbacks": 2,
+     "compactions": 32
+    }
+   },
+   "per_task": {
+    "fix_cache_key": {
+     "A1": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 561443,
+      "wall_s": 234.1,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "A2": {
+      "runs": 3,
+      "passed": 1,
+      "rate": 0.333,
+      "prompt_tokens": 196620,
+      "wall_s": 164.4,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "B": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 208984,
+      "wall_s": 126.9,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 3
+     }
+    },
+    "fix_csv_parser": {
+     "A1": {
+      "runs": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "prompt_tokens": 210072,
+      "wall_s": 54.1,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "A2": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 197523,
+      "wall_s": 89.5,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "B": {
+      "runs": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "prompt_tokens": 144440,
+      "wall_s": 57.6,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 3
+     }
+    },
+    "fix_failing_sum": {
+     "A1": {
+      "runs": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "prompt_tokens": 428379,
+      "wall_s": 96.2,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "A2": {
+      "runs": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "prompt_tokens": 90921,
+      "wall_s": 33.6,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "B": {
+      "runs": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "prompt_tokens": 99531,
+      "wall_s": 41.1,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 3
+     }
+    },
+    "fix_path_join": {
+     "A1": {
+      "runs": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "prompt_tokens": 252639,
+      "wall_s": 52.6,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "A2": {
+      "runs": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "prompt_tokens": 150054,
+      "wall_s": 64.4,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "B": {
+      "runs": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "prompt_tokens": 78054,
+      "wall_s": 76.0,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 3
+     }
+    },
+    "fix_retry_counter": {
+     "A1": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 559712,
+      "wall_s": 194.4,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "A2": {
+      "runs": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "prompt_tokens": 107130,
+      "wall_s": 73.5,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "B": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 187785,
+      "wall_s": 187.4,
+      "reloads": 0,
+      "fidelity_fallbacks": 2,
+      "compactions": 8
+     }
+    },
+    "implement_stable_sort": {
+     "A1": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 548937,
+      "wall_s": 253.7,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "A2": {
+      "runs": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "prompt_tokens": 90684,
+      "wall_s": 35.8,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "B": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 190947,
+      "wall_s": 157.6,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 6
+     }
+    },
+    "preserve_false_values": {
+     "A1": {
+      "runs": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "prompt_tokens": 253821,
+      "wall_s": 81.0,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "A2": {
+      "runs": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "prompt_tokens": 90558,
+      "wall_s": 36.3,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "B": {
+      "runs": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "prompt_tokens": 110784,
+      "wall_s": 44.0,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 3
+     }
+    },
+    "repair_json_reader": {
+     "A1": {
+      "runs": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "prompt_tokens": 170892,
+      "wall_s": 55.6,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "A2": {
+      "runs": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "prompt_tokens": 89982,
+      "wall_s": 27.5,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "B": {
+      "runs": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "prompt_tokens": 78039,
+      "wall_s": 44.4,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 3
+     }
+    }
+   }
+  },
+  {
+   "id": "final_llama8b_t4",
+   "model": "llama3.1:8b",
+   "gpu": "T4",
+   "windows": {
+    "big": 32768,
+    "small": 8192
+   },
+   "repeats": 3,
+   "summary": {
+    "A1": {
+     "runs": 24,
+     "passed": 3,
+     "rate": 0.125,
+     "prompt_tokens": 3804400,
+     "wall_s": 1186.2,
+     "reloads": 0,
+     "fidelity_fallbacks": 0,
+     "compactions": 0
+    },
+    "A2": {
+     "runs": 24,
+     "passed": 13,
+     "rate": 0.542,
+     "prompt_tokens": 1541100,
+     "wall_s": 736.2,
+     "reloads": 0,
+     "fidelity_fallbacks": 0,
+     "compactions": 0
+    },
+    "B": {
+     "runs": 24,
+     "passed": 2,
+     "rate": 0.083,
+     "prompt_tokens": 1446107,
+     "wall_s": 1056.0,
+     "reloads": 0,
+     "fidelity_fallbacks": 17,
+     "compactions": 45
+    }
+   },
+   "per_task": {
+    "fix_cache_key": {
+     "A1": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 489074,
+      "wall_s": 209.3,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "A2": {
+      "runs": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "prompt_tokens": 162474,
+      "wall_s": 58.2,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "B": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 179017,
+      "wall_s": 90.5,
+      "reloads": 0,
+      "fidelity_fallbacks": 14,
+      "compactions": 15
+     }
+    },
+    "fix_csv_parser": {
+     "A1": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 472944,
+      "wall_s": 140.6,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "A2": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 230974,
+      "wall_s": 140.7,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "B": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 167667,
+      "wall_s": 125.1,
+      "reloads": 0,
+      "fidelity_fallbacks": 3,
+      "compactions": 6
+     }
+    },
+    "fix_failing_sum": {
+     "A1": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 463842,
+      "wall_s": 119.5,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "A2": {
+      "runs": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "prompt_tokens": 161562,
+      "wall_s": 52.1,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "B": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 189455,
+      "wall_s": 88.2,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 3
+     }
+    },
+    "fix_path_join": {
+     "A1": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 464109,
+      "wall_s": 148.8,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "A2": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 225147,
+      "wall_s": 218.4,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "B": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 185896,
+      "wall_s": 136.5,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 5
+     }
+    },
+    "fix_retry_counter": {
+     "A1": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 469967,
+      "wall_s": 126.2,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "A2": {
+      "runs": 3,
+      "passed": 1,
+      "rate": 0.333,
+      "prompt_tokens": 209465,
+      "wall_s": 89.1,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "B": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 202852,
+      "wall_s": 176.4,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 3
+     }
+    },
+    "implement_stable_sort": {
+     "A1": {
+      "runs": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "prompt_tokens": 497412,
+      "wall_s": 215.5,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "A2": {
+      "runs": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "prompt_tokens": 148440,
+      "wall_s": 47.5,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "B": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 181876,
+      "wall_s": 224.2,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 6
+     }
+    },
+    "preserve_false_values": {
+     "A1": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 474213,
+      "wall_s": 115.2,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "A2": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 224271,
+      "wall_s": 73.2,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "B": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 194220,
+      "wall_s": 114.3,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 3
+     }
+    },
+    "repair_json_reader": {
+     "A1": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 472839,
+      "wall_s": 111.1,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "A2": {
+      "runs": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "prompt_tokens": 178767,
+      "wall_s": 57.0,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "B": {
+      "runs": 3,
+      "passed": 2,
+      "rate": 0.667,
+      "prompt_tokens": 145124,
+      "wall_s": 100.8,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 4
+     }
+    }
+   }
   }
  ],
  "highlights": [
@@ -883,32 +1483,32 @@
    }
   },
   {
-   "campaign": "final_qwen7b_t4",
-   "model": "qwen2.5:7b",
-   "gpu": "T4",
-   "task": "repair_json_reader",
+   "campaign": "final_qwen14b_a10g",
+   "model": "qwen2.5:14b",
+   "gpu": "A10G",
+   "task": "fix_csv_parser",
    "score": [
-    0.33,
     1.0,
-    0.81
+    0.0,
+    0.31
    ],
    "lanes": {
     "A1": {
      "runs": 3,
-     "passed": 0,
-     "rate": 0.0,
-     "prompt_tokens": 551757,
-     "wall_s": 184.7,
+     "passed": 3,
+     "rate": 1.0,
+     "prompt_tokens": 210072,
+     "wall_s": 54.1,
      "reloads": 0,
      "fidelity_fallbacks": 0,
      "compactions": 0
     },
     "A2": {
      "runs": 3,
-     "passed": 2,
-     "rate": 0.667,
-     "prompt_tokens": 174578,
-     "wall_s": 80.3,
+     "passed": 0,
+     "rate": 0.0,
+     "prompt_tokens": 197523,
+     "wall_s": 89.5,
      "reloads": 0,
      "fidelity_fallbacks": 0,
      "compactions": 0
@@ -917,8 +1517,8 @@
      "runs": 3,
      "passed": 3,
      "rate": 1.0,
-     "prompt_tokens": 102258,
-     "wall_s": 45.4,
+     "prompt_tokens": 144440,
+     "wall_s": 57.6,
      "reloads": 0,
      "fidelity_fallbacks": 0,
      "compactions": 3
@@ -926,13 +1526,13 @@
    },
    "traces": {
     "A1": {
-     "passed": false,
+     "passed": true,
      "repeat": 1,
      "window": 32768,
      "steps": [
       {
        "step": 1,
-       "prompt": 13850,
+       "prompt": 13846,
        "tools": [
         "list_files"
        ],
@@ -940,126 +1540,76 @@
       },
       {
        "step": 2,
-       "prompt": 13945,
+       "prompt": 13905,
        "tools": [
-        "write_file"
+        "read_file"
        ],
        "error": false
       },
       {
        "step": 3,
-       "prompt": 14086,
+       "prompt": 13959,
        "tools": [
-        "run_pytest"
+        "write_file"
        ],
        "error": false
       },
       {
        "step": 4,
-       "prompt": 14456,
+       "prompt": 14063,
        "tools": [
-        "write_file"
+        "run_pytest"
        ],
        "error": false
       },
       {
        "step": 5,
-       "prompt": 14552,
-       "tools": [
-        "run_pytest"
-       ],
-       "error": false
-      },
-      {
-       "step": 6,
-       "prompt": 14958,
-       "tools": [
-        "run_pytest"
-       ],
-       "error": false
-      },
-      {
-       "step": 7,
-       "prompt": 15385,
-       "tools": [
-        "run_pytest"
-       ],
-       "error": false
-      },
-      {
-       "step": 8,
-       "prompt": 15842,
+       "prompt": 14251,
        "tools": [],
-       "error": false
-      },
-      {
-       "step": 9,
-       "prompt": 16281,
-       "tools": [],
-       "error": false
-      },
-      {
-       "step": 10,
-       "prompt": 16415,
-       "tools": [],
-       "error": false
-      },
-      {
-       "step": 11,
-       "prompt": 16439,
-       "tools": [],
-       "error": false
-      },
-      {
-       "step": 12,
-       "prompt": 16463,
-       "tools": [
-        "write_file"
-       ],
        "error": false
       }
      ]
     },
     "A2": {
      "passed": false,
-     "repeat": 3,
+     "repeat": 1,
      "window": 8192,
      "steps": [
       {
        "step": 1,
        "prompt": 4816,
        "tools": [
-        "run_pytest"
+        "list_files"
        ],
        "error": false
       },
       {
        "step": 2,
-       "prompt": 5151,
+       "prompt": 4878,
        "tools": [
-        "run_pytest"
+        "read_file"
        ],
        "error": false
       },
       {
        "step": 3,
-       "prompt": 5490,
+       "prompt": 4926,
        "tools": [
-        "write_file"
+        "read_file"
        ],
        "error": false
       },
       {
        "step": 4,
-       "prompt": 5645,
+       "prompt": 5005,
        "tools": [
-        "run_pytest"
+        "read_file"
        ],
        "error": false
       },
       {
        "step": 5,
-       "prompt": 6205,
+       "prompt": 5079,
        "tools": [
         "write_file"
        ],
@@ -1067,7 +1617,7 @@
       },
       {
        "step": 6,
-       "prompt": 6333,
+       "prompt": 5215,
        "tools": [
         "run_pytest"
        ],
@@ -1075,7 +1625,7 @@
       },
       {
        "step": 7,
-       "prompt": 6893,
+       "prompt": 5546,
        "tools": [
         "write_file"
        ],
@@ -1083,7 +1633,7 @@
       },
       {
        "step": 8,
-       "prompt": 7021,
+       "prompt": 5666,
        "tools": [
         "run_pytest"
        ],
@@ -1091,7 +1641,7 @@
       },
       {
        "step": 9,
-       "prompt": 7581,
+       "prompt": 5997,
        "tools": [
         "write_file"
        ],
@@ -1099,15 +1649,15 @@
       },
       {
        "step": 10,
-       "prompt": 7717,
+       "prompt": 6124,
        "tools": [
-        "run_pytest"
+        "write_file"
        ],
        "error": false
       },
       {
        "step": 11,
-       "prompt": 3771,
+       "prompt": 6238,
        "tools": [
         "write_file"
        ],
@@ -1115,7 +1665,7 @@
       },
       {
        "step": 12,
-       "prompt": 3907,
+       "prompt": 6351,
        "tools": [
         "run_pytest"
        ],
@@ -1130,47 +1680,79 @@
      "steps": [
       {
        "step": 1,
-       "prompt": 5043,
+       "prompt": 5039,
        "tools": [
-        "run_pytest"
+        "read_file"
        ],
        "error": false
       },
       {
        "step": 2,
-       "prompt": 5380,
+       "prompt": 5090,
        "tools": [
-        "write_file"
+        "read_file"
        ],
        "error": false
       },
       {
        "step": 3,
-       "prompt": 5445,
+       "prompt": 5153,
        "tools": [
-        "run_pytest"
+        "list_files"
        ],
        "error": false
       },
       {
        "step": 4,
-       "prompt": 5964,
+       "prompt": 5228,
+       "tools": [
+        "list_files"
+       ],
+       "error": false
+      },
+      {
+       "step": 5,
+       "prompt": 5294,
+       "tools": [
+        "read_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 6,
+       "prompt": 5353,
        "tools": [
         "write_file"
        ],
        "error": false
       },
       {
-       "step": 5,
-       "prompt": 6033,
+       "step": 7,
+       "prompt": 5469,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 8,
+       "prompt": 5543,
        "tools": [
         "run_pytest"
        ],
        "error": false
       },
       {
-       "step": 6,
-       "prompt": 6221,
+       "step": 9,
+       "prompt": 5739,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 10,
+       "prompt": 5936,
        "tools": [],
        "error": false
       }
@@ -1457,5 +2039,83 @@
    }
   }
  },
- "crewai": null
+ "crewai": {
+  "id": "crew_14b_a10g",
+  "model": "qwen2.5:14b",
+  "gpu": "A10G",
+  "summary": {
+   "incident/contextgc": {
+    "runs": 3,
+    "passed": 0,
+    "success_rate": 0.0,
+    "total_wall_s": 192.9,
+    "timeouts": 0,
+    "prompt_tokens": 37262,
+    "gc_saved_pct_avg": 0.0
+   },
+   "code/contextgc": {
+    "runs": 3,
+    "passed": 0,
+    "success_rate": 0.0,
+    "total_wall_s": 589.7,
+    "timeouts": 0,
+    "prompt_tokens": 86624,
+    "gc_saved_pct_avg": 2.9
+   },
+   "incident/contextgc-nocrew": {
+    "runs": 3,
+    "passed": 0,
+    "success_rate": 0.0,
+    "total_wall_s": 286.9,
+    "timeouts": 0,
+    "prompt_tokens": 61887,
+    "gc_saved_pct_avg": -0.5
+   },
+   "code/contextgc-nocrew": {
+    "runs": 3,
+    "passed": 0,
+    "success_rate": 0.0,
+    "total_wall_s": 347.5,
+    "timeouts": 0,
+    "prompt_tokens": 43348,
+    "gc_saved_pct_avg": 1.4
+   },
+   "incident/raw": {
+    "runs": 3,
+    "passed": 0,
+    "success_rate": 0.0,
+    "total_wall_s": 379.2,
+    "timeouts": 0,
+    "prompt_tokens": 72582,
+    "gc_saved_pct_avg": null
+   },
+   "code/raw": {
+    "runs": 3,
+    "passed": 0,
+    "success_rate": 0.0,
+    "total_wall_s": 345.3,
+    "timeouts": 0,
+    "prompt_tokens": 82899,
+    "gc_saved_pct_avg": null
+   },
+   "incident/raw-nocrew": {
+    "runs": 3,
+    "passed": 0,
+    "success_rate": 0.0,
+    "total_wall_s": 280.3,
+    "timeouts": 0,
+    "prompt_tokens": 59825,
+    "gc_saved_pct_avg": null
+   },
+   "code/raw-nocrew": {
+    "runs": 3,
+    "passed": 2,
+    "success_rate": 0.667,
+    "total_wall_s": 241.3,
+    "timeouts": 0,
+    "prompt_tokens": 15360,
+    "gc_saved_pct_avg": null
+   }
+  }
+ }
 }

@@ -69,6 +69,13 @@ Work only on `main`; commit after each step that works.
   https://shivambhatia4404--contextgc-api-api.us-east.modal.run; results page +
   /live GPU run page, 1 T4 at a time, 25 runs/day cap). Workspace GPU limit is 10: live runs
   queue while campaigns run.
+- 2026-11-04 results (3 repeats, all on the site and in README "Results"): qwen2.5:7b T4 A1 10/24,
+  A2 10/24, B 16/24; qwen2.5:14b A10G 15/19/15; llama3.1:8b T4 3/13/2. B uses ~1/3 of A1's tokens on
+  every model. Ablation x3: B 14/24, no_evict 6/24, others within 2. CrewAI 14B A10G (4 lanes): ~all
+  fail, window never fills (tools cap reads at 16k chars), ContextGC saves 0-3%. L4 GPUs were never
+  scheduled; use T4/A10G. Modal preempts containers: merge_results keeps the newest file per task.
+- NEXT: on llama/14B, B behaves like full history (A1). Improve relevance filtering of old
+  history (earlier-session noise survives compaction); then rerun B lanes on those models.
 - Phase 4 dashboard DONE: `/dashboard` (live gauges, prompt-size chart with compaction markers,
   prompt diff, results viewer + race chart). Telemetry now carries Ollama stats (cached tokens,
   load time) and a compaction flag. 113 tests pass.

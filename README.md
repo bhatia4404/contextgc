@@ -19,11 +19,94 @@
 
 | You are… | Read this | Time |
 |---|---|---|
+| **A judge** who wants results without installing anything | [Results](#results-measured-on-gpus) and the [live site](https://shivambhatia4404--contextgc-showcase-web.us-east.modal.run) (start a real GPU run from the browser) | 2–5 min |
 | **A judge** checking that it works | [Quick start: verify it works](#quick-start-verify-it-works-cpu-only-no-gpu-needed), steps 1–6 | 10 s (tests) to ~20 min (full walkthrough) |
 | **New to the project** and want to use it with your own agent | [User guide](#user-guide-run-your-own-agent-through-contextgc) | 15 min |
 | **Running it on a GPU** (local, cloud VM or Modal) | [Running anywhere](#running-anywhere-cpu-a-remote-gpu-box-or-modal) | 15 min |
 | **Curious how it works** | [How it works](#how-it-works) and [The GC pipeline](#the-gc-pipeline) | 5 min |
 | **A developer** changing the code | [Repository layout](#repository-layout), [Tests](#tests), [`backend/README.md`](backend/README.md) | — |
+
+---
+
+## Results (measured on GPUs)
+
+**Live site:** https://shivambhatia4404--contextgc-showcase-web.us-east.modal.run shows every
+measured run and has a **Run it live** page that starts a real agent on a cloud T4 GPU and streams
+each step. (React app in [`frontend/`](frontend/), API in [`deploy/api_app.py`](deploy/api_app.py).)
+
+**Setup.** The same tool-using coding agent works on 8 small Python repair tasks. Each task starts
+with earlier-session noise in the history, so the prompt outgrows a small window within a few
+steps. Three lanes, same model, prompt, tools, temperature 0 and seed; only context handling
+differs:
+
+- **A1:** raw Ollama, 32k window. Prompts peaked at about 18k tokens, so nothing was ever cut:
+  this is what running the model normally looks like.
+- **A2:** raw Ollama, 8k window. Ollama silently drops the oldest messages, starting with the task.
+- **B:** ContextGC in front of Ollama, same 8k window.
+
+A pass means an independent pytest run passes and the tests were not edited. Each task ran
+3 times per lane on Modal GPUs.
+
+| Model (GPU) | A1 raw, 32k | A2 raw, 8k | **B ContextGC, 8k** | Prompt tokens A1 / A2 / B |
+|---|---|---|---|---|
+| qwen2.5:7b (T4) | 10/24 | 10/24 | **16/24** | 3.54M / 1.35M / 1.09M |
+| qwen2.5:14b (A10G) | 15/24 | **19/24** | 15/24 | 2.99M / 1.01M / 1.10M |
+| llama3.1:8b (T4) | 3/24 | **13/24** | 2/24 | 3.80M / 1.54M / 1.45M |
+
+**What this shows, honestly:**
+
+- On **qwen2.5:7b** ContextGC clearly helps: 16/24 against 10/24 for both raw lanes, with a third
+  of the 32k lane's prompt tokens. Repeats of a task now come out identical, so this gap is not noise.
+- ContextGC uses **about a third of the 32k lane's prompt tokens on every model**, with zero model
+  reloads.
+- On **qwen2.5:14b** and **llama3.1:8b** it does **not** help. There, the raw 8k lane, which simply
+  loses the old history when Ollama truncates it, does best. The full history (A1) confuses these
+  models, and ContextGC's curated history still keeps too much of the earlier-session noise. On llama,
+  ContextGC runs behave like the full-history runs: text replies and repeated `run_pytest`, no fix.
+  Better relevance filtering of old history is the clearest next improvement.
+
+**Which stages matter** (qwen2.5:7b, T4, every task 3 times with one stage switched off):
+
+| Variant | Passed |
+|---|---|
+| Full ContextGC | 14/24 |
+| Without eviction | **6/24** |
+| Without semantic merging | 13/24 |
+| Without the state anchor | 16/24 |
+| Without the loop detector | 14/24 |
+| Without offload | 15/24 |
+
+Eviction is the stage doing the work. The others move the result by at most 2 runs, which is the
+noise level between identical configurations on a GPU. The loop detector only ever fired in runs
+that were really looping (never in a passing run), but switching to the raw history did not rescue
+them.
+
+**CrewAI** (qwen2.5:14b, A10G, two crews x 3 runs, 8k window in every setup). We ran four setups:
+raw Ollama and ContextGC, each with CrewAI 1.15's own context handling on (it parks large tool
+results in files and summarizes on overflow) and off (`AGENT_CREW_CONTEXT=0`, lanes `*-nocrew` in
+[`crewai_agent/run_ab.py`](crewai_agent/run_ab.py)).
+
+| Crew | Raw, CrewAI handling on | ContextGC, on | Raw, CrewAI handling off | ContextGC, off |
+|---|---|---|---|---|
+| Incident response | 0/3 | 0/3 | 0/3 | 0/3 |
+| Code maintenance | 0/3 | 0/3 | 2/3 | 0/3 |
+
+ContextGC removed only 0–3% of tokens here, because the window never filled: the crews' own file
+tools return at most the last 16k characters, and CrewAI's deferral keeps prompts small on top of
+that. This test therefore says little about ContextGC either way. What it does show is that modern
+frameworks are starting to manage tool output themselves, so ContextGC's value is largest for agents
+and frameworks that do not, such as the plain tool-calling agent in the benchmark above.
+
+**Caveats.** The tasks are ours and small; results on other workloads may differ. Even at
+temperature 0, GPU runs are not perfectly repeatable, so treat gaps of 1–2 runs as noise.
+ContextGC loses some tasks too: on `implement_stable_sort` qwen2.5:7b passes 3/3 with the raw 8k
+window and 0/3 through ContextGC, where it loops on re-running pytest.
+
+**Reproduce.** `modal deploy deploy/modal_app.py`, then
+`python deploy/launch.py main --gpu t4 --model qwen2.5:7b --repeats 3 --campaign <name>`
+(one container per task; survives a closed laptop). Fetch with
+`modal volume get contextgc-results <name> backend/benchmark/results/modal/` and merge with
+`python backend/benchmark/merge_results.py backend/benchmark/results/modal/<name>`.
 
 ---
 
