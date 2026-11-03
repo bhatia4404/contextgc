@@ -1179,6 +1179,283 @@
    }
   }
  ],
- "ablation": null,
+ "ablation": {
+  "id": "ablation3_qwen7b_t4",
+  "model": "qwen2.5:7b",
+  "gpu": "T4",
+  "repeats": 3,
+  "summary": {
+   "B": {
+    "runs": 24,
+    "passed": 14,
+    "rate": 0.583,
+    "prompt_tokens": 1169561,
+    "wall_s": 991.5,
+    "reloads": 0,
+    "fidelity_fallbacks": 39,
+    "compactions": 56
+   },
+   "B:no_semantic": {
+    "runs": 24,
+    "passed": 13,
+    "rate": 0.542,
+    "prompt_tokens": 1191760,
+    "wall_s": 915.4,
+    "reloads": 0,
+    "fidelity_fallbacks": 36,
+    "compactions": 57
+   },
+   "B:no_state": {
+    "runs": 24,
+    "passed": 16,
+    "rate": 0.667,
+    "prompt_tokens": 1091683,
+    "wall_s": 548.1,
+    "reloads": 0,
+    "fidelity_fallbacks": 21,
+    "compactions": 40
+   },
+   "B:no_fidelity": {
+    "runs": 24,
+    "passed": 14,
+    "rate": 0.583,
+    "prompt_tokens": 1165697,
+    "wall_s": 747.7,
+    "reloads": 0,
+    "fidelity_fallbacks": 0,
+    "compactions": 33
+   },
+   "B:no_evict": {
+    "runs": 24,
+    "passed": 6,
+    "rate": 0.25,
+    "prompt_tokens": 1372939,
+    "wall_s": 1359.9,
+    "reloads": 0,
+    "fidelity_fallbacks": 37,
+    "compactions": 69
+   },
+   "B:no_offload": {
+    "runs": 24,
+    "passed": 15,
+    "rate": 0.625,
+    "prompt_tokens": 634696,
+    "wall_s": 737.1,
+    "reloads": 0,
+    "fidelity_fallbacks": 11,
+    "compactions": 57
+   }
+  },
+  "per_task": {
+   "fix_cache_key": {
+    "B": {
+     "passed": 0,
+     "runs": 3
+    },
+    "B:no_semantic": {
+     "passed": 0,
+     "runs": 3
+    },
+    "B:no_state": {
+     "passed": 3,
+     "runs": 3
+    },
+    "B:no_fidelity": {
+     "passed": 0,
+     "runs": 3
+    },
+    "B:no_evict": {
+     "passed": 0,
+     "runs": 3
+    },
+    "B:no_offload": {
+     "passed": 3,
+     "runs": 3
+    }
+   },
+   "fix_csv_parser": {
+    "B": {
+     "passed": 3,
+     "runs": 3
+    },
+    "B:no_semantic": {
+     "passed": 3,
+     "runs": 3
+    },
+    "B:no_state": {
+     "passed": 0,
+     "runs": 3
+    },
+    "B:no_fidelity": {
+     "passed": 3,
+     "runs": 3
+    },
+    "B:no_evict": {
+     "passed": 3,
+     "runs": 3
+    },
+    "B:no_offload": {
+     "passed": 0,
+     "runs": 3
+    }
+   },
+   "fix_failing_sum": {
+    "B": {
+     "passed": 3,
+     "runs": 3
+    },
+    "B:no_semantic": {
+     "passed": 3,
+     "runs": 3
+    },
+    "B:no_state": {
+     "passed": 3,
+     "runs": 3
+    },
+    "B:no_fidelity": {
+     "passed": 3,
+     "runs": 3
+    },
+    "B:no_evict": {
+     "passed": 0,
+     "runs": 3
+    },
+    "B:no_offload": {
+     "passed": 3,
+     "runs": 3
+    }
+   },
+   "fix_path_join": {
+    "B": {
+     "passed": 3,
+     "runs": 3
+    },
+    "B:no_semantic": {
+     "passed": 3,
+     "runs": 3
+    },
+    "B:no_state": {
+     "passed": 3,
+     "runs": 3
+    },
+    "B:no_fidelity": {
+     "passed": 3,
+     "runs": 3
+    },
+    "B:no_evict": {
+     "passed": 0,
+     "runs": 3
+    },
+    "B:no_offload": {
+     "passed": 0,
+     "runs": 3
+    }
+   },
+   "fix_retry_counter": {
+    "B": {
+     "passed": 2,
+     "runs": 3
+    },
+    "B:no_semantic": {
+     "passed": 1,
+     "runs": 3
+    },
+    "B:no_state": {
+     "passed": 1,
+     "runs": 3
+    },
+    "B:no_fidelity": {
+     "passed": 2,
+     "runs": 3
+    },
+    "B:no_evict": {
+     "passed": 0,
+     "runs": 3
+    },
+    "B:no_offload": {
+     "passed": 3,
+     "runs": 3
+    }
+   },
+   "implement_stable_sort": {
+    "B": {
+     "passed": 0,
+     "runs": 3
+    },
+    "B:no_semantic": {
+     "passed": 0,
+     "runs": 3
+    },
+    "B:no_state": {
+     "passed": 0,
+     "runs": 3
+    },
+    "B:no_fidelity": {
+     "passed": 0,
+     "runs": 3
+    },
+    "B:no_evict": {
+     "passed": 0,
+     "runs": 3
+    },
+    "B:no_offload": {
+     "passed": 3,
+     "runs": 3
+    }
+   },
+   "preserve_false_values": {
+    "B": {
+     "passed": 0,
+     "runs": 3
+    },
+    "B:no_semantic": {
+     "passed": 0,
+     "runs": 3
+    },
+    "B:no_state": {
+     "passed": 3,
+     "runs": 3
+    },
+    "B:no_fidelity": {
+     "passed": 0,
+     "runs": 3
+    },
+    "B:no_evict": {
+     "passed": 0,
+     "runs": 3
+    },
+    "B:no_offload": {
+     "passed": 0,
+     "runs": 3
+    }
+   },
+   "repair_json_reader": {
+    "B": {
+     "passed": 3,
+     "runs": 3
+    },
+    "B:no_semantic": {
+     "passed": 3,
+     "runs": 3
+    },
+    "B:no_state": {
+     "passed": 3,
+     "runs": 3
+    },
+    "B:no_fidelity": {
+     "passed": 3,
+     "runs": 3
+    },
+    "B:no_evict": {
+     "passed": 3,
+     "runs": 3
+    },
+    "B:no_offload": {
+     "passed": 3,
+     "runs": 3
+    }
+   }
+  }
+ },
  "crewai": null
 }
