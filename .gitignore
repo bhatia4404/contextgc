@@ -29,3 +29,4 @@ chat_id.txt
 backend/benchmark/results/
 !.gitkeep
 tmp_tel.json
+deploy/launched.jsonl

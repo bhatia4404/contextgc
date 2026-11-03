@@ -10,6 +10,9 @@ Setup (once):
     pip install modal
     modal token new
 
+Long campaigns (survive a closed session): `modal deploy deploy/modal_app.py`, then
+deploy/launch.py (one spawned container per task; see its docstring).
+
 Run (from the repo root):
     modal run deploy/modal_app.py::pull --models qwen2.5:7b,llama3.1:8b          # CPU-only, cheap
     modal run deploy/modal_app.py::main --gpu t4 --models qwen2.5:7b --tasks fix_path_join --repeats 1 --small-num-ctx 8192  # smoke
@@ -98,7 +101,8 @@ def _bench(models: list[str], bench_args: list[str], tag: str, vram_override_mb:
     smi = subprocess.run(["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader"],
                          capture_output=True, text=True)
     (out_dir / "gpu.txt").write_text(smi.stdout or "no GPU\n", encoding="utf-8")
-    code = _stack(models, [script, *bench_args, "--tag", tag], env)
+    # a campaign tag "<campaign>/<task>" is a folder; the script's own tag is a file name
+    code = _stack(models, [script, *bench_args, "--tag", tag.replace("/", "__")], env)
     models_vol.commit()   # keep any newly pulled weights
     results_vol.commit()
     files = {p.name: p.read_text(encoding="utf-8", errors="replace")

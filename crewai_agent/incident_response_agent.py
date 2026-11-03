@@ -100,7 +100,7 @@ def main() -> None:
         from crewai import Agent, Crew, Process, Task
     except ImportError as exc:
         raise SystemExit("Install CrewAI first: pip install -r requirements.txt") from exc
-    from llm_config import hard_exit, make_llm, settings, usage, write_result
+    from llm_config import agent_kwargs, hard_exit, make_llm, settings, usage, write_result
 
     s = settings()
     tools = build_tools()
@@ -108,13 +108,13 @@ def main() -> None:
         role="Production incident investigator",
         goal="Correlate logs, source, configuration, and tests to explain the incident.",
         backstory="You are an on-call engineer. Preserve evidence and do not edit code.",
-        tools=tools[:4], llm=make_llm("investigator"), verbose=True, max_iter=15,
+        tools=tools[:4], llm=make_llm("investigator"), verbose=True, max_iter=15, **agent_kwargs(),
     )
     responder = Agent(
         role="Incident remediation engineer",
         goal="Fix the confirmed source regression, run tests, and produce a concise incident report.",
         backstory="You make minimal source-only changes and never alter tests or historical logs.",
-        tools=tools, llm=make_llm("responder"), verbose=True, max_iter=15,
+        tools=tools, llm=make_llm("responder"), verbose=True, max_iter=15, **agent_kwargs(),
     )
     investigate = Task(
         description=(

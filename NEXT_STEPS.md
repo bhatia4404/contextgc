@@ -34,13 +34,28 @@ Work only on `main`; commit after each step that works.
   empty args, and CrewAI crashed on empty replies (EmptyLLMResponseError) in both lanes. Context
   stayed ~1k tokens/request because absolute paths (`/data/...`) were rejected by the tools, so the
   big log was never read. FIXED: tools now resolve any path form inside the repo
-  (`llm_config.resolve_in_repo`). NEXT: rerun with a stronger model, e.g.
-  `modal run deploy/modal_app.py::crewai --gpu l4 --model qwen2.5:14b --repeats 2` (pull it first).
+  (`llm_config.resolve_in_repo`). Rerun with qwen2.5:14b on L4 started detached (tag
+  `crewai_ab_14b_l4`); fetch with
+  `modal volume get contextgc-results crewai_ab_14b_l4 backend/benchmark/results/modal/`.
 - Step 4 (3.6 keep/kill) tooling DONE: `run_tasks.py --lanes b,b-no_<stage>,...`; presets derived
   from one stage list (old no_semantic/no_evict also silently disabled fidelity); per-run proxy
   telemetry (compactions, fidelity fallbacks, stage savings). Ablation run `ablation_7b_t4` started
   detached; fetch with `modal volume get contextgc-results ablation_7b_t4 backend/benchmark/results/modal/`.
   Observation: the anchored state block is mostly nulls + log lines (weak; see ablation result).
+- 2026-11-03 evening: both detached runs were STOPPED at 17:51:30 when the Claude session closed
+  (`--detach` did not survive the local process being killed on Windows). Ablation 46/48 runs done;
+  CrewAI 14B 1/8. For long runs use a deployed app + `.spawn()` instead of `modal run --detach`.
+- Ablation `ablation_7b_t4` (1 run/task, noisy): B 6/8 (358k tok), no_semantic 4/8, no_state 5/8,
+  no_fidelity 4/8, **no_evict 1/7**, no_offload 5/7 at **170k tok** (eviction replaced offload).
+  Semantic contraction saved 0 tokens everywhere, yet B vs no_semantic still differ on 2 tasks:
+  that is the noise floor (GPU/prompt-cache numerics), so only large gaps count. Readings:
+  eviction = keep (clear); semantic = kill candidate (does nothing on this suite); state = no
+  measurable effect; fidelity fired 10x in 8 B runs (check if real loops); offload vs eviction
+  needs repeats. Need >=3 repeats per lane before deciding.
+- CrewAI 14B (1 run): fail; ContextGC saved 0%. **CrewAI 1.15 defers large tool results itself**
+  (`read_a_deferred_tool_result` tool), so prompts stay ~1k tokens and there is nothing for
+  ContextGC to compact. Also the model kept reading the decoy `routing_code.txt`. Decide: disable
+  CrewAI's deferral to compare, or position ContextGC as framework-agnostic (frameworks without it).
 - Phase 4 dashboard DONE: `/dashboard` (live gauges, prompt-size chart with compaction markers,
   prompt diff, results viewer + race chart). Telemetry now carries Ollama stats (cached tokens,
   load time) and a compaction flag. 113 tests pass.

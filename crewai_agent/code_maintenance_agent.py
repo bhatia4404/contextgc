@@ -73,7 +73,7 @@ def run() -> dict:
     except ImportError as exc:
         raise RuntimeError("CrewAI is not installed. Run: pip install -r requirements.txt") from exc
 
-    from llm_config import make_llm, settings, usage
+    from llm_config import agent_kwargs, make_llm, settings, usage
 
     s = settings()
     tools = build_tools()
@@ -82,13 +82,13 @@ def run() -> dict:
         role="Senior repository investigator",
         goal="Diagnose the failing repository using evidence from files and pytest.",
         backstory="You inspect carefully and never edit source files.",
-        tools=tools[:3], llm=make_llm("investigator"), verbose=True, max_iter=15,
+        tools=tools[:3], llm=make_llm("investigator"), verbose=True, max_iter=15, **agent_kwargs(),
     )
     maintainer = Agent(
         role="Test-driven Python maintainer",
         goal="Make the smallest correct source-only fix and prove it with pytest.",
         backstory="You never change tests and always run the final checker.",
-        tools=tools, llm=make_llm("maintainer"), verbose=True, max_iter=15,
+        tools=tools, llm=make_llm("maintainer"), verbose=True, max_iter=15, **agent_kwargs(),
     )
     diagnosis = Task(
         description=(

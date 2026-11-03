@@ -133,6 +133,7 @@ def run_one(agent: str, lane: str, rep: int, args, base_url: str) -> dict:
         env = {**os.environ, "AGENT_BASE_URL": base_url, "AGENT_MODEL": args.model,
                "AGENT_NUM_CTX": str(args.num_ctx), "AGENT_RUN_ID": run_id,
                "AGENT_REPOSITORY": str(repo), "AGENT_RESULT_FILE": str(result_file),
+               "AGENT_CREW_CONTEXT": "0" if lane.endswith("-nocrew") else "1",
                "CREWAI_DISABLE_TELEMETRY": "true", "OTEL_SDK_DISABLED": "true",
                "LITELLM_LOCAL_MODEL_COST_MAP": "True", "PYTHONUTF8": "1", "PYTHONUNBUFFERED": "1"}
         t0 = time.perf_counter()
@@ -152,7 +153,8 @@ def run_one(agent: str, lane: str, rep: int, args, base_url: str) -> dict:
            "exit_code": code, "wall_s": wall, "usage": agent_result.get("usage", {}),
            "residency": residency(args.ollama_url, args.model), "pytest_tail": pytest_tail,
            "crew_output_tail": str(agent_result.get("crew_output", ""))[-800:], "log": log_file.name}
-    if lane == "contextgc":
+    row["crew_context"] = not lane.endswith("-nocrew")
+    if lane.startswith("contextgc"):
         row["contextgc"] = gc_telemetry(args.proxy_url, run_id)
     return row
 
@@ -174,7 +176,8 @@ def summarize(runs: list[dict]) -> dict:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--agents", default="incident,code", help=f"comma list of {sorted(AGENTS)}")
-    ap.add_argument("--lanes", default="raw,contextgc")
+    ap.add_argument("--lanes", default="raw,contextgc",
+                    help="raw, contextgc; add '-nocrew' (e.g. raw-nocrew) to switch off CrewAI's own context handling")
     ap.add_argument("--repeats", type=int, default=3)
     ap.add_argument("--model", default="qwen2.5:7b")
     ap.add_argument("--num-ctx", type=int, default=8192, help="same window for both lanes")
@@ -187,8 +190,9 @@ def main() -> None:
 
     agents = [a.strip() for a in args.agents.split(",") if a.strip()]
     lanes = [x.strip() for x in args.lanes.split(",") if x.strip()]
-    urls = {"raw": args.ollama_url, "contextgc": args.proxy_url}
-    if "contextgc" in lanes and not httpx.get(f"{args.proxy_url}/healthz", timeout=5).json().get("gc_enabled"):
+    base = {"raw": args.ollama_url, "contextgc": args.proxy_url}
+    urls = {lane: base[lane.removesuffix("-nocrew")] for lane in lanes}
+    if any(lane.startswith("contextgc") for lane in lanes) and not httpx.get(f"{args.proxy_url}/healthz", timeout=5).json().get("gc_enabled"):
         sys.exit("[crew-ab] the proxy is running with GC off; start it with CONTEXTGC_GC_ENABLED=true")
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     out_path = RESULTS_DIR / f"crew_ab_{args.tag}.json"
@@ -206,14 +210,14 @@ def main() -> None:
                 out_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
                 gc = row.get("contextgc") or {}
                 extra = f" gc_saved={gc.get('saved_pct')}% req={gc.get('requests')}" if gc else ""
-                print(f"[r{rep}] {agent:<8} {lane:<9} {'PASS' if row['passed'] else 'fail'} "
+                print(f"[r{rep}] {agent:<8} {lane:<16} {'PASS' if row['passed'] else 'fail'} "
                       f"wall={row['wall_s']}s prompt_tokens={(row['usage'] or {}).get('prompt_tokens')}"
                       f"{' TIMEOUT' if row['timed_out'] else ''}{' TESTS-TAMPERED' if row['tests_tampered'] else ''}"
                       f"{extra}", flush=True)
 
-    print(f"\n{'agent/lane':<20} {'pass':>6} {'wall s':>8} {'prompt tok':>11}")
+    print(f"\n{'agent/lane':<27} {'pass':>6} {'wall s':>8} {'prompt tok':>11}")
     for key, s in report["summary"].items():
-        print(f"{key:<20} {s['passed']}/{s['runs']:<4} {s['wall_s']:>8} {s['prompt_tokens']:>11}")
+        print(f"{key:<27} {s['passed']}/{s['runs']:<4} {s['wall_s']:>8} {s['prompt_tokens']:>11}")
     print(f"[crew-ab] results written: {out_path}")
 
 

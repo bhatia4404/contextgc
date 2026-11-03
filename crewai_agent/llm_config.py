@@ -11,6 +11,9 @@ Environment:
     AGENT_MODEL      default qwen2.5:7b
     AGENT_NUM_CTX    context window for every request, default 8192
     AGENT_RUN_ID     run id sent as x-contextgc-run (one per agent: "<id>-<role>")
+    AGENT_CREW_CONTEXT  1 (default) keeps CrewAI's own context handling (it defers
+                     large tool results to files and summarizes on overflow);
+                     0 switches both off, so only the window (and ContextGC) act
 """
 from __future__ import annotations
 
@@ -39,6 +42,12 @@ def make_llm(role: str):
         temperature=0, seed=7, max_tokens=1024, num_ctx=s["num_ctx"],
         extra_headers={"x-contextgc-run": f"{s['run_id']}-{role}"},
     )
+
+
+def agent_kwargs() -> dict:
+    """CrewAI's built-in context handling, on or off (AGENT_CREW_CONTEXT)."""
+    on = os.getenv("AGENT_CREW_CONTEXT", "1") != "0"
+    return {"use_better_compaction": on, "respect_context_window": on}
 
 
 def resolve_in_repo(repo, path: str):
