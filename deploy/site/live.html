@@ -61,13 +61,13 @@
 <script>
 const TASKS = {
   fix_path_join: "Path builder must handle a trailing slash",
-  preserve_false_values: "Config lookup must keep false, 0 and empty values",
   fix_retry_counter: "Retry counter must reset after success",
   repair_json_reader: "Missing optional JSON field should become an empty list",
   fix_csv_parser: "Commas inside quoted CSV fields stay in the field",
   fix_failing_sum: "Fix a failing sum function",
-  implement_stable_sort: "Implement a stable sort by timestamp",
   fix_cache_key: "Cache keys must not collide across namespaces",
+  implement_stable_sort: "Implement a stable sort by timestamp",
+  preserve_false_values: "Config lookup must keep false, 0 and empty values",
 };
 const STATUS = { queued: "Waiting for a GPU", starting: "Starting GPU and model", running: "Running", done: "Finished", error: "Failed" };
 const $ = id => document.getElementById(id);

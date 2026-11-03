@@ -56,6 +56,17 @@ Work only on `main`; commit after each step that works.
   (`read_a_deferred_tool_result` tool), so prompts stay ~1k tokens and there is nothing for
   ContextGC to compact. Also the model kept reading the decoy `routing_code.txt`. Decide: disable
   CrewAI's deferral to compare, or position ContextGC as framework-agnostic (frameworks without it).
+- 2026-11-03 night: long runs now go through `modal deploy deploy/modal_app.py` +
+  `python deploy/launch.py main|ablation|crewai ...` (one spawned container per task; survives a
+  closed session; `python deploy/launch.py status`). Campaigns launched: final_qwen7b_t4,
+  ablation3_qwen7b_t4, crew_14b_l4 (4 lanes: raw/contextgc x CrewAI's own handling on/off via
+  `-nocrew`), final_qwen14b_l4, final_llama8b_l4 (all 3 repeats). Fetch with
+  `modal volume get contextgc-results <campaign> backend/benchmark/results/modal/`, merge with
+  `backend/benchmark/merge_results.py`, then `deploy/build_showcase.py` and
+  `modal deploy deploy/showcase_app.py`.
+- Judge site: https://shivambhatia4404--contextgc-showcase-web.us-east.modal.run (results page +
+  /live GPU run page, 1 T4 at a time, 25 runs/day cap). Workspace GPU limit is 10: live runs
+  queue while campaigns run.
 - Phase 4 dashboard DONE: `/dashboard` (live gauges, prompt-size chart with compaction markers,
   prompt diff, results viewer + race chart). Telemetry now carries Ollama stats (cached tokens,
   load time) and a compaction flag. 113 tests pass.

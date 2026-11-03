@@ -68,7 +68,9 @@ def highlights(mains: list[dict], n: int = 3) -> list[dict]:
             rate = {k: lanes[k]["success_rate"] or 0 for k in LANES}
             tokens = {k: lanes[k]["prompt_eval_tokens"] or 0 for k in LANES}
             saving = 1 - tokens["B"] / tokens["A1"] if tokens["A1"] else 0
-            scored.append(((rate["B"] - rate["A2"], rate["B"] - rate["A1"], saving), data, task))
+            # rounded so 1.0 - 0.667 ties with 0.333 - 0 and the next key decides
+            scored.append((tuple(round(x, 2) for x in (rate["B"] - rate["A2"], rate["B"] - rate["A1"], saving)),
+                           data, task))
     scored.sort(key=lambda x: x[0], reverse=True)
     out, seen = [], set()
     for score, data, task in scored:

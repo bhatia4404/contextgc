@@ -3,301 +3,301 @@
  "repo": "https://github.com/bhatia4404/contextgc",
  "campaigns": [
   {
-   "id": "step1b_all_tasks_7b_deterministic",
+   "id": "final_qwen7b_t4",
    "model": "qwen2.5:7b",
-   "gpu": "GPU",
+   "gpu": "T4",
    "windows": {
     "big": 32768,
     "small": 8192
    },
-   "repeats": 1,
+   "repeats": 3,
    "summary": {
     "A1": {
-     "runs": 8,
-     "passed": 3,
-     "rate": 0.375,
-     "prompt_tokens": 1187049,
-     "wall_s": 397.4,
+     "runs": 24,
+     "passed": 10,
+     "rate": 0.417,
+     "prompt_tokens": 3538869,
+     "wall_s": 1152.2,
      "reloads": 0,
      "fidelity_fallbacks": 0,
      "compactions": 0
     },
     "A2": {
-     "runs": 8,
-     "passed": 2,
-     "rate": 0.25,
-     "prompt_tokens": 473627,
-     "wall_s": 349.6,
+     "runs": 24,
+     "passed": 10,
+     "rate": 0.417,
+     "prompt_tokens": 1353571,
+     "wall_s": 854.6,
      "reloads": 0,
      "fidelity_fallbacks": 0,
      "compactions": 0
     },
     "B": {
-     "runs": 8,
-     "passed": 5,
-     "rate": 0.625,
-     "prompt_tokens": 398537,
-     "wall_s": 253.4,
+     "runs": 24,
+     "passed": 16,
+     "rate": 0.667,
+     "prompt_tokens": 1094837,
+     "wall_s": 841.4,
      "reloads": 0,
-     "fidelity_fallbacks": 0,
-     "compactions": 0
+     "fidelity_fallbacks": 29,
+     "compactions": 49
     }
    },
    "per_task": {
-    "fix_failing_sum": {
-     "A1": {
-      "runs": 1,
-      "passed": 1,
-      "rate": 1.0,
-      "prompt_tokens": 98826,
-      "wall_s": 22.0,
-      "reloads": 0,
-      "fidelity_fallbacks": 0,
-      "compactions": 0
-     },
-     "A2": {
-      "runs": 1,
-      "passed": 1,
-      "rate": 1.0,
-      "prompt_tokens": 26446,
-      "wall_s": 11.8,
-      "reloads": 0,
-      "fidelity_fallbacks": 0,
-      "compactions": 0
-     },
-     "B": {
-      "runs": 1,
-      "passed": 0,
-      "rate": 0.0,
-      "prompt_tokens": 72658,
-      "wall_s": 53.7,
-      "reloads": 0,
-      "fidelity_fallbacks": 0,
-      "compactions": 0
-     }
-    },
-    "repair_json_reader": {
-     "A1": {
-      "runs": 1,
-      "passed": 0,
-      "rate": 0.0,
-      "prompt_tokens": 187927,
-      "wall_s": 78.6,
-      "reloads": 0,
-      "fidelity_fallbacks": 0,
-      "compactions": 0
-     },
-     "A2": {
-      "runs": 1,
-      "passed": 0,
-      "rate": 0.0,
-      "prompt_tokens": 70490,
-      "wall_s": 44.2,
-      "reloads": 0,
-      "fidelity_fallbacks": 0,
-      "compactions": 0
-     },
-     "B": {
-      "runs": 1,
-      "passed": 1,
-      "rate": 1.0,
-      "prompt_tokens": 34086,
-      "wall_s": 11.4,
-      "reloads": 0,
-      "fidelity_fallbacks": 0,
-      "compactions": 0
-     }
-    },
-    "fix_path_join": {
-     "A1": {
-      "runs": 1,
-      "passed": 1,
-      "rate": 1.0,
-      "prompt_tokens": 98515,
-      "wall_s": 22.0,
-      "reloads": 0,
-      "fidelity_fallbacks": 0,
-      "compactions": 0
-     },
-     "A2": {
-      "runs": 1,
-      "passed": 0,
-      "rate": 0.0,
-      "prompt_tokens": 72040,
-      "wall_s": 46.7,
-      "reloads": 0,
-      "fidelity_fallbacks": 0,
-      "compactions": 0
-     },
-     "B": {
-      "runs": 1,
-      "passed": 1,
-      "rate": 1.0,
-      "prompt_tokens": 49956,
-      "wall_s": 21.5,
-      "reloads": 0,
-      "fidelity_fallbacks": 0,
-      "compactions": 0
-     }
-    },
-    "preserve_false_values": {
-     "A1": {
-      "runs": 1,
-      "passed": 0,
-      "rate": 0.0,
-      "prompt_tokens": 181468,
-      "wall_s": 68.3,
-      "reloads": 0,
-      "fidelity_fallbacks": 0,
-      "compactions": 0
-     },
-     "A2": {
-      "runs": 1,
-      "passed": 0,
-      "rate": 0.0,
-      "prompt_tokens": 72183,
-      "wall_s": 62.1,
-      "reloads": 0,
-      "fidelity_fallbacks": 0,
-      "compactions": 0
-     },
-     "B": {
-      "runs": 1,
-      "passed": 1,
-      "rate": 1.0,
-      "prompt_tokens": 28282,
-      "wall_s": 17.1,
-      "reloads": 0,
-      "fidelity_fallbacks": 0,
-      "compactions": 0
-     }
-    },
-    "fix_retry_counter": {
-     "A1": {
-      "runs": 1,
-      "passed": 0,
-      "rate": 0.0,
-      "prompt_tokens": 182121,
-      "wall_s": 52.6,
-      "reloads": 0,
-      "fidelity_fallbacks": 0,
-      "compactions": 0
-     },
-     "A2": {
-      "runs": 1,
-      "passed": 0,
-      "rate": 0.0,
-      "prompt_tokens": 72254,
-      "wall_s": 55.1,
-      "reloads": 0,
-      "fidelity_fallbacks": 0,
-      "compactions": 0
-     },
-     "B": {
-      "runs": 1,
-      "passed": 1,
-      "rate": 1.0,
-      "prompt_tokens": 39657,
-      "wall_s": 19.4,
-      "reloads": 0,
-      "fidelity_fallbacks": 0,
-      "compactions": 0
-     }
-    },
-    "implement_stable_sort": {
-     "A1": {
-      "runs": 1,
-      "passed": 0,
-      "rate": 0.0,
-      "prompt_tokens": 181681,
-      "wall_s": 61.5,
-      "reloads": 0,
-      "fidelity_fallbacks": 0,
-      "compactions": 0
-     },
-     "A2": {
-      "runs": 1,
-      "passed": 1,
-      "rate": 1.0,
-      "prompt_tokens": 20949,
-      "wall_s": 10.9,
-      "reloads": 0,
-      "fidelity_fallbacks": 0,
-      "compactions": 0
-     },
-     "B": {
-      "runs": 1,
-      "passed": 0,
-      "rate": 0.0,
-      "prompt_tokens": 68421,
-      "wall_s": 80.8,
-      "reloads": 0,
-      "fidelity_fallbacks": 0,
-      "compactions": 0
-     }
-    },
     "fix_cache_key": {
      "A1": {
-      "runs": 1,
-      "passed": 0,
-      "rate": 0.0,
-      "prompt_tokens": 186440,
-      "wall_s": 71.0,
+      "runs": 3,
+      "passed": 1,
+      "rate": 0.333,
+      "prompt_tokens": 547432,
+      "wall_s": 190.0,
       "reloads": 0,
       "fidelity_fallbacks": 0,
       "compactions": 0
      },
      "A2": {
-      "runs": 1,
+      "runs": 3,
       "passed": 0,
       "rate": 0.0,
-      "prompt_tokens": 71573,
-      "wall_s": 64.6,
+      "prompt_tokens": 214785,
+      "wall_s": 186.4,
       "reloads": 0,
       "fidelity_fallbacks": 0,
       "compactions": 0
      },
      "B": {
-      "runs": 1,
-      "passed": 0,
-      "rate": 0.0,
-      "prompt_tokens": 73977,
-      "wall_s": 36.2,
+      "runs": 3,
+      "passed": 1,
+      "rate": 0.333,
+      "prompt_tokens": 178475,
+      "wall_s": 117.9,
       "reloads": 0,
-      "fidelity_fallbacks": 0,
-      "compactions": 0
+      "fidelity_fallbacks": 1,
+      "compactions": 4
      }
     },
     "fix_csv_parser": {
      "A1": {
-      "runs": 1,
-      "passed": 1,
+      "runs": 3,
+      "passed": 3,
       "rate": 1.0,
-      "prompt_tokens": 70071,
-      "wall_s": 21.4,
+      "prompt_tokens": 210213,
+      "wall_s": 64.4,
       "reloads": 0,
       "fidelity_fallbacks": 0,
       "compactions": 0
      },
      "A2": {
-      "runs": 1,
-      "passed": 0,
-      "rate": 0.0,
-      "prompt_tokens": 67692,
-      "wall_s": 54.2,
+      "runs": 3,
+      "passed": 2,
+      "rate": 0.667,
+      "prompt_tokens": 180376,
+      "wall_s": 114.6,
       "reloads": 0,
       "fidelity_fallbacks": 0,
       "compactions": 0
      },
      "B": {
-      "runs": 1,
-      "passed": 1,
+      "runs": 3,
+      "passed": 3,
       "rate": 1.0,
-      "prompt_tokens": 31500,
-      "wall_s": 13.3,
+      "prompt_tokens": 94500,
+      "wall_s": 49.1,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 3
+     }
+    },
+    "fix_failing_sum": {
+     "A1": {
+      "runs": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "prompt_tokens": 296478,
+      "wall_s": 69.5,
       "reloads": 0,
       "fidelity_fallbacks": 0,
       "compactions": 0
+     },
+     "A2": {
+      "runs": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "prompt_tokens": 79338,
+      "wall_s": 33.4,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "B": {
+      "runs": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "prompt_tokens": 97950,
+      "wall_s": 57.5,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 3
+     }
+    },
+    "fix_path_join": {
+     "A1": {
+      "runs": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "prompt_tokens": 295545,
+      "wall_s": 69.1,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "A2": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 212176,
+      "wall_s": 119.6,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "B": {
+      "runs": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "prompt_tokens": 132540,
+      "wall_s": 78.1,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 3
+     }
+    },
+    "fix_retry_counter": {
+     "A1": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 547284,
+      "wall_s": 152.5,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "A2": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 212721,
+      "wall_s": 138.6,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "B": {
+      "runs": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "prompt_tokens": 118947,
+      "wall_s": 67.3,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 3
+     }
+    },
+    "implement_stable_sort": {
+     "A1": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 544163,
+      "wall_s": 163.0,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "A2": {
+      "runs": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "prompt_tokens": 62847,
+      "wall_s": 29.1,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "B": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 206317,
+      "wall_s": 235.4,
+      "reloads": 0,
+      "fidelity_fallbacks": 21,
+      "compactions": 21
+     }
+    },
+    "preserve_false_values": {
+     "A1": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 545997,
+      "wall_s": 259.0,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "A2": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 216750,
+      "wall_s": 152.6,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "B": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 163850,
+      "wall_s": 190.7,
+      "reloads": 0,
+      "fidelity_fallbacks": 7,
+      "compactions": 9
+     }
+    },
+    "repair_json_reader": {
+     "A1": {
+      "runs": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "prompt_tokens": 551757,
+      "wall_s": 184.7,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "A2": {
+      "runs": 3,
+      "passed": 2,
+      "rate": 0.667,
+      "prompt_tokens": 174578,
+      "wall_s": 80.3,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 0
+     },
+     "B": {
+      "runs": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "prompt_tokens": 102258,
+      "wall_s": 45.4,
+      "reloads": 0,
+      "fidelity_fallbacks": 0,
+      "compactions": 3
      }
     }
    }
@@ -305,45 +305,45 @@
  ],
  "highlights": [
   {
-   "campaign": "step1b_all_tasks_7b_deterministic",
+   "campaign": "final_qwen7b_t4",
    "model": "qwen2.5:7b",
-   "gpu": "GPU",
-   "task": "preserve_false_values",
+   "gpu": "T4",
+   "task": "fix_retry_counter",
    "score": [
     1.0,
     1.0,
-    0.844
+    0.78
    ],
    "lanes": {
     "A1": {
-     "runs": 1,
+     "runs": 3,
      "passed": 0,
      "rate": 0.0,
-     "prompt_tokens": 181468,
-     "wall_s": 68.3,
+     "prompt_tokens": 547284,
+     "wall_s": 152.5,
      "reloads": 0,
      "fidelity_fallbacks": 0,
      "compactions": 0
     },
     "A2": {
-     "runs": 1,
+     "runs": 3,
      "passed": 0,
      "rate": 0.0,
-     "prompt_tokens": 72183,
-     "wall_s": 62.1,
+     "prompt_tokens": 212721,
+     "wall_s": 138.6,
      "reloads": 0,
      "fidelity_fallbacks": 0,
      "compactions": 0
     },
     "B": {
-     "runs": 1,
-     "passed": 1,
+     "runs": 3,
+     "passed": 3,
      "rate": 1.0,
-     "prompt_tokens": 28282,
-     "wall_s": 17.1,
+     "prompt_tokens": 118947,
+     "wall_s": 67.3,
      "reloads": 0,
      "fidelity_fallbacks": 0,
-     "compactions": 0
+     "compactions": 3
     }
    },
    "traces": {
@@ -362,19 +362,23 @@
       },
       {
        "step": 2,
-       "prompt": 14246,
-       "tools": [],
+       "prompt": 14169,
+       "tools": [
+        "write_file"
+       ],
        "error": false
       },
       {
        "step": 3,
-       "prompt": 14270,
-       "tools": [],
+       "prompt": 14253,
+       "tools": [
+        "run_pytest"
+       ],
        "error": false
       },
       {
        "step": 4,
-       "prompt": 14294,
+       "prompt": 14575,
        "tools": [
         "write_file"
        ],
@@ -382,7 +386,7 @@
       },
       {
        "step": 5,
-       "prompt": 14465,
+       "prompt": 14659,
        "tools": [
         "run_pytest"
        ],
@@ -390,7 +394,7 @@
       },
       {
        "step": 6,
-       "prompt": 14864,
+       "prompt": 14981,
        "tools": [
         "write_file"
        ],
@@ -398,42 +402,48 @@
       },
       {
        "step": 7,
-       "prompt": 15030,
-       "tools": [
-        "write_file"
-       ],
-       "error": false
-      },
-      {
-       "step": 8,
-       "prompt": 15196,
+       "prompt": 15122,
        "tools": [
         "run_pytest"
        ],
        "error": false
       },
       {
+       "step": 8,
+       "prompt": 15500,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
        "step": 9,
-       "prompt": 15595,
-       "tools": [],
+       "prompt": 15761,
+       "tools": [
+        "run_pytest"
+       ],
        "error": false
       },
       {
        "step": 10,
-       "prompt": 16131,
+       "prompt": 16105,
        "tools": [],
        "error": false
       },
       {
        "step": 11,
-       "prompt": 16497,
-       "tools": [],
+       "prompt": 16314,
+       "tools": [
+        "write_file"
+       ],
        "error": false
       },
       {
        "step": 12,
-       "prompt": 17033,
-       "tools": [],
+       "prompt": 16422,
+       "tools": [
+        "run_pytest"
+       ],
        "error": false
       }
      ]
@@ -453,7 +463,7 @@
       },
       {
        "step": 2,
-       "prompt": 5211,
+       "prompt": 5133,
        "tools": [
         "run_pytest"
        ],
@@ -461,7 +471,7 @@
       },
       {
        "step": 3,
-       "prompt": 5610,
+       "prompt": 5456,
        "tools": [
         "write_file"
        ],
@@ -469,7 +479,7 @@
       },
       {
        "step": 4,
-       "prompt": 5726,
+       "prompt": 5574,
        "tools": [
         "write_file"
        ],
@@ -477,7 +487,7 @@
       },
       {
        "step": 5,
-       "prompt": 5800,
+       "prompt": 5689,
        "tools": [
         "write_file"
        ],
@@ -485,15 +495,15 @@
       },
       {
        "step": 6,
-       "prompt": 5942,
+       "prompt": 5802,
        "tools": [
-        "run_pytest"
+        "write_file"
        ],
        "error": false
       },
       {
        "step": 7,
-       "prompt": 6519,
+       "prompt": 5915,
        "tools": [
         "write_file"
        ],
@@ -501,7 +511,7 @@
       },
       {
        "step": 8,
-       "prompt": 6654,
+       "prompt": 6038,
        "tools": [
         "write_file"
        ],
@@ -509,33 +519,33 @@
       },
       {
        "step": 9,
-       "prompt": 6784,
+       "prompt": 6154,
        "tools": [
-        "run_pytest"
+        "write_file"
        ],
        "error": false
       },
       {
        "step": 10,
-       "prompt": 7332,
+       "prompt": 6292,
        "tools": [
-        "run_pytest"
+        "write_file"
        ],
        "error": false
       },
       {
        "step": 11,
-       "prompt": 7867,
+       "prompt": 6403,
        "tools": [
-        "run_pytest"
+        "write_file"
        ],
        "error": false
       },
       {
        "step": 12,
-       "prompt": 3922,
+       "prompt": 6514,
        "tools": [
-        "run_pytest"
+        "write_file"
        ],
        "error": false
       }
@@ -556,31 +566,47 @@
       },
       {
        "step": 2,
-       "prompt": 5437,
-       "tools": [
-        "run_pytest"
-       ],
-       "error": false
-      },
-      {
-       "step": 3,
-       "prompt": 5836,
+       "prompt": 5362,
        "tools": [
         "write_file"
        ],
        "error": false
       },
       {
-       "step": 4,
-       "prompt": 6004,
+       "step": 3,
+       "prompt": 5446,
        "tools": [
         "run_pytest"
        ],
        "error": false
       },
       {
+       "step": 4,
+       "prompt": 5776,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
        "step": 5,
-       "prompt": 5965,
+       "prompt": 5851,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 6,
+       "prompt": 5993,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 7,
+       "prompt": 6181,
        "tools": [],
        "error": false
       }
@@ -589,45 +615,313 @@
    }
   },
   {
-   "campaign": "step1b_all_tasks_7b_deterministic",
+   "campaign": "final_qwen7b_t4",
    "model": "qwen2.5:7b",
-   "gpu": "GPU",
-   "task": "repair_json_reader",
+   "gpu": "T4",
+   "task": "fix_path_join",
    "score": [
     1.0,
-    1.0,
-    0.819
+    0.0,
+    0.55
    ],
    "lanes": {
     "A1": {
-     "runs": 1,
-     "passed": 0,
-     "rate": 0.0,
-     "prompt_tokens": 187927,
-     "wall_s": 78.6,
+     "runs": 3,
+     "passed": 3,
+     "rate": 1.0,
+     "prompt_tokens": 295545,
+     "wall_s": 69.1,
      "reloads": 0,
      "fidelity_fallbacks": 0,
      "compactions": 0
     },
     "A2": {
-     "runs": 1,
+     "runs": 3,
      "passed": 0,
      "rate": 0.0,
-     "prompt_tokens": 70490,
-     "wall_s": 44.2,
+     "prompt_tokens": 212176,
+     "wall_s": 119.6,
      "reloads": 0,
      "fidelity_fallbacks": 0,
      "compactions": 0
     },
     "B": {
-     "runs": 1,
-     "passed": 1,
+     "runs": 3,
+     "passed": 3,
      "rate": 1.0,
-     "prompt_tokens": 34086,
-     "wall_s": 11.4,
+     "prompt_tokens": 132540,
+     "wall_s": 78.1,
+     "reloads": 0,
+     "fidelity_fallbacks": 0,
+     "compactions": 3
+    }
+   },
+   "traces": {
+    "A1": {
+     "passed": true,
+     "repeat": 1,
+     "window": 32768,
+     "steps": [
+      {
+       "step": 1,
+       "prompt": 13850,
+       "tools": [
+        "read_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 2,
+       "prompt": 13899,
+       "tools": [
+        "list_files"
+       ],
+       "error": false
+      },
+      {
+       "step": 3,
+       "prompt": 13978,
+       "tools": [
+        "read_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 4,
+       "prompt": 14039,
+       "tools": [],
+       "error": false
+      },
+      {
+       "step": 5,
+       "prompt": 14145,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 6,
+       "prompt": 14208,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 7,
+       "prompt": 14396,
+       "tools": [],
+       "error": false
+      }
+     ]
+    },
+    "A2": {
+     "passed": false,
+     "repeat": 1,
+     "window": 8192,
+     "steps": [
+      {
+       "step": 1,
+       "prompt": 4816,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 2,
+       "prompt": 5120,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 3,
+       "prompt": 5428,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 4,
+       "prompt": 5529,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 5,
+       "prompt": 5604,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 6,
+       "prompt": 5716,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 7,
+       "prompt": 5807,
+       "tools": [],
+       "error": false
+      },
+      {
+       "step": 8,
+       "prompt": 5966,
+       "tools": [],
+       "error": false
+      },
+      {
+       "step": 9,
+       "prompt": 6258,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 10,
+       "prompt": 6401,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 11,
+       "prompt": 6530,
+       "tools": [],
+       "error": false
+      },
+      {
+       "step": 12,
+       "prompt": 6680,
+       "tools": [],
+       "error": false
+      }
+     ]
+    },
+    "B": {
+     "passed": true,
+     "repeat": 1,
+     "window": 8192,
+     "steps": [
+      {
+       "step": 1,
+       "prompt": 5043,
+       "tools": [
+        "list_files"
+       ],
+       "error": false
+      },
+      {
+       "step": 2,
+       "prompt": 5122,
+       "tools": [
+        "read_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 3,
+       "prompt": 5172,
+       "tools": [
+        "read_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 4,
+       "prompt": 5238,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 5,
+       "prompt": 5709,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 6,
+       "prompt": 5847,
+       "tools": [
+        "write_file"
+       ],
+       "error": false
+      },
+      {
+       "step": 7,
+       "prompt": 5931,
+       "tools": [
+        "run_pytest"
+       ],
+       "error": false
+      },
+      {
+       "step": 8,
+       "prompt": 6118,
+       "tools": [],
+       "error": false
+      }
+     ]
+    }
+   }
+  },
+  {
+   "campaign": "final_qwen7b_t4",
+   "model": "qwen2.5:7b",
+   "gpu": "T4",
+   "task": "repair_json_reader",
+   "score": [
+    0.33,
+    1.0,
+    0.81
+   ],
+   "lanes": {
+    "A1": {
+     "runs": 3,
+     "passed": 0,
+     "rate": 0.0,
+     "prompt_tokens": 551757,
+     "wall_s": 184.7,
      "reloads": 0,
      "fidelity_fallbacks": 0,
      "compactions": 0
+    },
+    "A2": {
+     "runs": 3,
+     "passed": 2,
+     "rate": 0.667,
+     "prompt_tokens": 174578,
+     "wall_s": 80.3,
+     "reloads": 0,
+     "fidelity_fallbacks": 0,
+     "compactions": 0
+    },
+    "B": {
+     "runs": 3,
+     "passed": 3,
+     "rate": 1.0,
+     "prompt_tokens": 102258,
+     "wall_s": 45.4,
+     "reloads": 0,
+     "fidelity_fallbacks": 0,
+     "compactions": 3
     }
    },
    "traces": {
@@ -662,7 +956,7 @@
       },
       {
        "step": 4,
-       "prompt": 14455,
+       "prompt": 14456,
        "tools": [
         "write_file"
        ],
@@ -670,7 +964,7 @@
       },
       {
        "step": 5,
-       "prompt": 14546,
+       "prompt": 14552,
        "tools": [
         "run_pytest"
        ],
@@ -678,7 +972,7 @@
       },
       {
        "step": 6,
-       "prompt": 15182,
+       "prompt": 14958,
        "tools": [
         "run_pytest"
        ],
@@ -686,7 +980,7 @@
       },
       {
        "step": 7,
-       "prompt": 15639,
+       "prompt": 15385,
        "tools": [
         "run_pytest"
        ],
@@ -694,47 +988,41 @@
       },
       {
        "step": 8,
-       "prompt": 16238,
-       "tools": [
-        "run_pytest"
-       ],
+       "prompt": 15842,
+       "tools": [],
        "error": false
       },
       {
        "step": 9,
-       "prompt": 16721,
-       "tools": [
-        "run_pytest"
-       ],
+       "prompt": 16281,
+       "tools": [],
        "error": false
       },
       {
        "step": 10,
-       "prompt": 17230,
-       "tools": [
-        "run_pytest"
-       ],
+       "prompt": 16415,
+       "tools": [],
        "error": false
       },
       {
        "step": 11,
-       "prompt": 17735,
-       "tools": [
-        "run_pytest"
-       ],
+       "prompt": 16439,
+       "tools": [],
        "error": false
       },
       {
        "step": 12,
-       "prompt": 18300,
-       "tools": [],
+       "prompt": 16463,
+       "tools": [
+        "write_file"
+       ],
        "error": false
       }
      ]
     },
     "A2": {
      "passed": false,
-     "repeat": 1,
+     "repeat": 3,
      "window": 8192,
      "steps": [
       {
@@ -771,7 +1059,7 @@
       },
       {
        "step": 5,
-       "prompt": 6203,
+       "prompt": 6205,
        "tools": [
         "write_file"
        ],
@@ -779,7 +1067,7 @@
       },
       {
        "step": 6,
-       "prompt": 6331,
+       "prompt": 6333,
        "tools": [
         "run_pytest"
        ],
@@ -787,7 +1075,7 @@
       },
       {
        "step": 7,
-       "prompt": 6889,
+       "prompt": 6893,
        "tools": [
         "write_file"
        ],
@@ -795,7 +1083,7 @@
       },
       {
        "step": 8,
-       "prompt": 7017,
+       "prompt": 7021,
        "tools": [
         "run_pytest"
        ],
@@ -803,7 +1091,7 @@
       },
       {
        "step": 9,
-       "prompt": 7575,
+       "prompt": 7581,
        "tools": [
         "write_file"
        ],
@@ -811,7 +1099,7 @@
       },
       {
        "step": 10,
-       "prompt": 7711,
+       "prompt": 7717,
        "tools": [
         "run_pytest"
        ],
@@ -819,7 +1107,7 @@
       },
       {
        "step": 11,
-       "prompt": 3763,
+       "prompt": 3771,
        "tools": [
         "write_file"
        ],
@@ -827,7 +1115,7 @@
       },
       {
        "step": 12,
-       "prompt": 3899,
+       "prompt": 3907,
        "tools": [
         "run_pytest"
        ],
@@ -889,594 +1177,8 @@
      ]
     }
    }
-  },
-  {
-   "campaign": "step1b_all_tasks_7b_deterministic",
-   "model": "qwen2.5:7b",
-   "gpu": "GPU",
-   "task": "fix_retry_counter",
-   "score": [
-    1.0,
-    1.0,
-    0.782
-   ],
-   "lanes": {
-    "A1": {
-     "runs": 1,
-     "passed": 0,
-     "rate": 0.0,
-     "prompt_tokens": 182121,
-     "wall_s": 52.6,
-     "reloads": 0,
-     "fidelity_fallbacks": 0,
-     "compactions": 0
-    },
-    "A2": {
-     "runs": 1,
-     "passed": 0,
-     "rate": 0.0,
-     "prompt_tokens": 72254,
-     "wall_s": 55.1,
-     "reloads": 0,
-     "fidelity_fallbacks": 0,
-     "compactions": 0
-    },
-    "B": {
-     "runs": 1,
-     "passed": 1,
-     "rate": 1.0,
-     "prompt_tokens": 39657,
-     "wall_s": 19.4,
-     "reloads": 0,
-     "fidelity_fallbacks": 0,
-     "compactions": 0
-    }
-   },
-   "traces": {
-    "A1": {
-     "passed": false,
-     "repeat": 1,
-     "window": 32768,
-     "steps": [
-      {
-       "step": 1,
-       "prompt": 13847,
-       "tools": [
-        "run_pytest"
-       ],
-       "error": false
-      },
-      {
-       "step": 2,
-       "prompt": 14168,
-       "tools": [
-        "write_file"
-       ],
-       "error": false
-      },
-      {
-       "step": 3,
-       "prompt": 14252,
-       "tools": [
-        "run_pytest"
-       ],
-       "error": false
-      },
-      {
-       "step": 4,
-       "prompt": 14576,
-       "tools": [
-        "run_pytest"
-       ],
-       "error": false
-      },
-      {
-       "step": 5,
-       "prompt": 15007,
-       "tools": [
-        "write_file"
-       ],
-       "error": false
-      },
-      {
-       "step": 6,
-       "prompt": 15175,
-       "tools": [],
-       "error": false
-      },
-      {
-       "step": 7,
-       "prompt": 15199,
-       "tools": [
-        "run_pytest"
-       ],
-       "error": false
-      },
-      {
-       "step": 8,
-       "prompt": 15519,
-       "tools": [
-        "write_file"
-       ],
-       "error": false
-      },
-      {
-       "step": 9,
-       "prompt": 15684,
-       "tools": [
-        "run_pytest"
-       ],
-       "error": false
-      },
-      {
-       "step": 10,
-       "prompt": 16008,
-       "tools": [],
-       "error": false
-      },
-      {
-       "step": 11,
-       "prompt": 16286,
-       "tools": [
-        "write_file"
-       ],
-       "error": false
-      },
-      {
-       "step": 12,
-       "prompt": 16400,
-       "tools": [
-        "run_pytest"
-       ],
-       "error": false
-      }
-     ]
-    },
-    "A2": {
-     "passed": false,
-     "repeat": 1,
-     "window": 8192,
-     "steps": [
-      {
-       "step": 1,
-       "prompt": 4816,
-       "tools": [
-        "run_pytest"
-       ],
-       "error": false
-      },
-      {
-       "step": 2,
-       "prompt": 5135,
-       "tools": [
-        "run_pytest"
-       ],
-       "error": false
-      },
-      {
-       "step": 3,
-       "prompt": 5459,
-       "tools": [
-        "write_file"
-       ],
-       "error": false
-      },
-      {
-       "step": 4,
-       "prompt": 5577,
-       "tools": [
-        "write_file"
-       ],
-       "error": false
-      },
-      {
-       "step": 5,
-       "prompt": 5689,
-       "tools": [
-        "write_file"
-       ],
-       "error": false
-      },
-      {
-       "step": 6,
-       "prompt": 5805,
-       "tools": [
-        "write_file"
-       ],
-       "error": false
-      },
-      {
-       "step": 7,
-       "prompt": 5938,
-       "tools": [
-        "write_file"
-       ],
-       "error": false
-      },
-      {
-       "step": 8,
-       "prompt": 6051,
-       "tools": [],
-       "error": false
-      },
-      {
-       "step": 9,
-       "prompt": 6510,
-       "tools": [
-        "write_file"
-       ],
-       "error": false
-      },
-      {
-       "step": 10,
-       "prompt": 6717,
-       "tools": [],
-       "error": false
-      },
-      {
-       "step": 11,
-       "prompt": 7135,
-       "tools": [],
-       "error": false
-      },
-      {
-       "step": 12,
-       "prompt": 7422,
-       "tools": [
-        "write_file"
-       ],
-       "error": false
-      }
-     ]
-    },
-    "B": {
-     "passed": true,
-     "repeat": 1,
-     "window": 8192,
-     "steps": [
-      {
-       "step": 1,
-       "prompt": 5040,
-       "tools": [
-        "run_pytest"
-       ],
-       "error": false
-      },
-      {
-       "step": 2,
-       "prompt": 5363,
-       "tools": [
-        "write_file"
-       ],
-       "error": false
-      },
-      {
-       "step": 3,
-       "prompt": 5447,
-       "tools": [
-        "run_pytest"
-       ],
-       "error": false
-      },
-      {
-       "step": 4,
-       "prompt": 5780,
-       "tools": [
-        "write_file"
-       ],
-       "error": false
-      },
-      {
-       "step": 5,
-       "prompt": 5853,
-       "tools": [
-        "write_file"
-       ],
-       "error": false
-      },
-      {
-       "step": 6,
-       "prompt": 5993,
-       "tools": [
-        "run_pytest"
-       ],
-       "error": false
-      },
-      {
-       "step": 7,
-       "prompt": 6181,
-       "tools": [],
-       "error": false
-      }
-     ]
-    }
-   }
   }
  ],
- "ablation": {
-  "id": "ablation_7b_t4",
-  "model": "qwen2.5:7b",
-  "gpu": "T4",
-  "repeats": 1,
-  "summary": {
-   "B": {
-    "runs": 8,
-    "passed": 6,
-    "rate": 0.75,
-    "prompt_tokens": 358133,
-    "wall_s": 269.3,
-    "reloads": 0,
-    "fidelity_fallbacks": 10,
-    "compactions": 16
-   },
-   "B:no_semantic": {
-    "runs": 8,
-    "passed": 4,
-    "rate": 0.5,
-    "prompt_tokens": 390610,
-    "wall_s": 296.7,
-    "reloads": 0,
-    "fidelity_fallbacks": 18,
-    "compactions": 22
-   },
-   "B:no_state": {
-    "runs": 8,
-    "passed": 5,
-    "rate": 0.625,
-    "prompt_tokens": 365200,
-    "wall_s": 184.1,
-    "reloads": 0,
-    "fidelity_fallbacks": 4,
-    "compactions": 12
-   },
-   "B:no_fidelity": {
-    "runs": 8,
-    "passed": 4,
-    "rate": 0.5,
-    "prompt_tokens": 393355,
-    "wall_s": 257.7,
-    "reloads": 0,
-    "fidelity_fallbacks": 0,
-    "compactions": 13
-   },
-   "B:no_evict": {
-    "runs": 7,
-    "passed": 1,
-    "rate": 0.143,
-    "prompt_tokens": 406082,
-    "wall_s": 397.1,
-    "reloads": 0,
-    "fidelity_fallbacks": 5,
-    "compactions": 16
-   },
-   "B:no_offload": {
-    "runs": 7,
-    "passed": 5,
-    "rate": 0.714,
-    "prompt_tokens": 170296,
-    "wall_s": 165.3,
-    "reloads": 0,
-    "fidelity_fallbacks": 4,
-    "compactions": 16
-   }
-  },
-  "per_task": {
-   "fix_failing_sum": {
-    "B": {
-     "passed": 1,
-     "runs": 1
-    },
-    "B:no_semantic": {
-     "passed": 1,
-     "runs": 1
-    },
-    "B:no_state": {
-     "passed": 1,
-     "runs": 1
-    },
-    "B:no_fidelity": {
-     "passed": 1,
-     "runs": 1
-    },
-    "B:no_evict": {
-     "passed": 0,
-     "runs": 1
-    },
-    "B:no_offload": {
-     "passed": 1,
-     "runs": 1
-    }
-   },
-   "repair_json_reader": {
-    "B": {
-     "passed": 1,
-     "runs": 1
-    },
-    "B:no_semantic": {
-     "passed": 1,
-     "runs": 1
-    },
-    "B:no_state": {
-     "passed": 1,
-     "runs": 1
-    },
-    "B:no_fidelity": {
-     "passed": 1,
-     "runs": 1
-    },
-    "B:no_evict": {
-     "passed": 1,
-     "runs": 1
-    },
-    "B:no_offload": {
-     "passed": 1,
-     "runs": 1
-    }
-   },
-   "fix_path_join": {
-    "B": {
-     "passed": 1,
-     "runs": 1
-    },
-    "B:no_semantic": {
-     "passed": 1,
-     "runs": 1
-    },
-    "B:no_state": {
-     "passed": 1,
-     "runs": 1
-    },
-    "B:no_fidelity": {
-     "passed": 1,
-     "runs": 1
-    },
-    "B:no_evict": {
-     "passed": 0,
-     "runs": 1
-    },
-    "B:no_offload": {
-     "passed": 0,
-     "runs": 1
-    }
-   },
-   "preserve_false_values": {
-    "B": {
-     "passed": 0,
-     "runs": 1
-    },
-    "B:no_semantic": {
-     "passed": 0,
-     "runs": 1
-    },
-    "B:no_state": {
-     "passed": 1,
-     "runs": 1
-    },
-    "B:no_fidelity": {
-     "passed": 0,
-     "runs": 1
-    },
-    "B:no_evict": {
-     "passed": 0,
-     "runs": 1
-    },
-    "B:no_offload": {
-     "passed": 0,
-     "runs": 1
-    }
-   },
-   "fix_retry_counter": {
-    "B": {
-     "passed": 1,
-     "runs": 1
-    },
-    "B:no_semantic": {
-     "passed": 0,
-     "runs": 1
-    },
-    "B:no_state": {
-     "passed": 0,
-     "runs": 1
-    },
-    "B:no_fidelity": {
-     "passed": 0,
-     "runs": 1
-    },
-    "B:no_evict": {
-     "passed": 0,
-     "runs": 1
-    },
-    "B:no_offload": {
-     "passed": 1,
-     "runs": 1
-    }
-   },
-   "implement_stable_sort": {
-    "B": {
-     "passed": 0,
-     "runs": 1
-    },
-    "B:no_semantic": {
-     "passed": 0,
-     "runs": 1
-    },
-    "B:no_state": {
-     "passed": 0,
-     "runs": 1
-    },
-    "B:no_fidelity": {
-     "passed": 0,
-     "runs": 1
-    },
-    "B:no_evict": {
-     "passed": 0,
-     "runs": 1
-    },
-    "B:no_offload": {
-     "passed": 1,
-     "runs": 1
-    }
-   },
-   "fix_cache_key": {
-    "B": {
-     "passed": 1,
-     "runs": 1
-    },
-    "B:no_semantic": {
-     "passed": 0,
-     "runs": 1
-    },
-    "B:no_state": {
-     "passed": 1,
-     "runs": 1
-    },
-    "B:no_fidelity": {
-     "passed": 0,
-     "runs": 1
-    },
-    "B:no_evict": {
-     "passed": 0,
-     "runs": 1
-    },
-    "B:no_offload": {
-     "passed": 1,
-     "runs": 1
-    }
-   },
-   "fix_csv_parser": {
-    "B": {
-     "passed": 1,
-     "runs": 1
-    },
-    "B:no_semantic": {
-     "passed": 1,
-     "runs": 1
-    },
-    "B:no_state": {
-     "passed": 0,
-     "runs": 1
-    },
-    "B:no_fidelity": {
-     "passed": 1,
-     "runs": 1
-    }
-   }
-  }
- },
- "crewai": {
-  "id": "crewai_ab_14b_l4",
-  "model": "qwen2.5:14b",
-  "gpu": "L4",
-  "summary": {
-   "incident/contextgc": {
-    "runs": 1,
-    "passed": 0,
-    "success_rate": 0.0,
-    "total_wall_s": 164.1,
-    "timeouts": 0,
-    "prompt_tokens": 36822,
-    "gc_saved_pct_avg": 0.0
-   }
-  }
- }
+ "ablation": null,
+ "crewai": null
 }
