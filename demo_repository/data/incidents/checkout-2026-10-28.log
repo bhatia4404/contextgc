@@ -1,0 +1,15 @@
+2026-10-28T09:14:02Z INFO request_id=8f1 route=checkout status=200 latency_ms=184
+2026-10-28T09:14:05Z WARN request_id=90a payment_provider=acme timeout_ms=3000
+2026-10-28T09:14:06Z ERROR request_id=90a route=checkout status=503 error=provider_timeout
+2026-10-28T09:14:07Z ERROR request_id=91b route=checkout status=503 error=provider_timeout
+2026-10-28T09:14:08Z WARN circuit=payment-provider state=open failures=25
+2026-10-28T09:14:10Z INFO queue=payments-platform retry_after=30
+2026-10-28T09:15:02Z ERROR request_id=a01 route=checkout status=503 error=provider_timeout
+2026-10-28T09:15:04Z ERROR request_id=a02 route=checkout status=503 error=provider_timeout
+2026-10-28T09:15:08Z WARN customer_impact estimated_customers=1400
+2026-10-28T09:15:10Z INFO incident=INC-1042 severity=critical
+2026-10-28T09:16:12Z INFO on_call=platform-primary acknowledged=true
+2026-10-28T09:17:41Z DEBUG retry_bucket=checkout attempts=3 result=failed
+2026-10-28T09:18:02Z ERROR route=checkout status=503 error=provider_timeout
+2026-10-28T09:19:22Z INFO provider=acme status=degraded
+2026-10-28T09:20:11Z WARN queue_depth=842

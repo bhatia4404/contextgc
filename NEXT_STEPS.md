@@ -1,0 +1,102 @@
+# ContextGC: next steps
+
+Last updated: 2026-11-01. All work so far is committed and pushed to `main` (b82fb25).
+Work only on `main`; commit after each step that works.
+
+## Where we are
+
+- The Modal GPU setup works end to end (workspace `shivambhatia4404`, T4). Weights for
+  `qwen2.5:3b` and `qwen2.5:7b` are already in the `contextgc-models` Volume.
+- On a 16 GB T4 the window probe gives every lane 32768, so benchmark runs must pass
+  `--small-num-ctx 8192` to create window pressure.
+- `qwen2.5:3b` is too weak (fails in every lane). `qwen2.5:7b` passes with the big window (A1).
+- The padding is ~13.8k real tokens at `pad=8192`, so in an 8k window Ollama silently drops the
+  oldest messages, including the task prompt. That is why A2 (raw, small window) fails.
+- Fixed in b82fb25: the fidelity fallback mistook tool-call-only turns (empty text) for a loop
+  and sent B's raw history, so B was truncated like A2. Not yet re-verified on GPU.
+
+## Progress 2026-11-03
+
+- Step 1 DONE. fix_path_join x3: A1 3/3, A2 0/3, B 1/3. Found a second bug: pointer text had a
+  process-wide ref counter and a timestamped path, so every run's prompt differed (B's runs
+  diverged at T=0). Fixed: per-run ref ids, no path in the prompt (106 tests pass).
+- All 8 tasks x1, qwen2.5:7b, T4, small window 8192 (results/modal/step1b_all_tasks_7b_deterministic):
+  A1 3/8 (1,187k prompt tokens), A2 2/8 (474k), **B 5/8 (399k = 34% of A1)**, 0 reloads, gpu=1.0.
+  Single run per task: noisy, needs repeats/more models before claiming.
+- Step 2 code written: crewai_agent/llm_config.py (LiteLLM ollama_chat -> native /api/chat with
+  num_ctx; CrewAI 1.15's own ollama client uses /v1), run_ab.py (raw vs ContextGC, fresh repo copy,
+  generated 2000-line outage log, pytest + test-tamper check), Modal `crewai` entrypoint.
+  Local smoke: crew runs through the proxy with tools (run was cut off by session end).
+  GPU run started detached: `crewai_ab_7b_t4` -> fetch with
+  `modal volume get contextgc-results crewai_ab_7b_t4 backend/benchmark/results/modal/`.
+- CrewAI A/B GPU run `crewai_ab_7b_t4` (qwen2.5:7b, 2 repeats): **0/4 raw, 0/4 ContextGC**, not a
+  ContextGC verdict. The 7B model wrote to wrong paths (`repo/routing.py`), sent write calls with
+  empty args, and CrewAI crashed on empty replies (EmptyLLMResponseError) in both lanes. Context
+  stayed ~1k tokens/request because absolute paths (`/data/...`) were rejected by the tools, so the
+  big log was never read. FIXED: tools now resolve any path form inside the repo
+  (`llm_config.resolve_in_repo`). NEXT: rerun with a stronger model, e.g.
+  `modal run deploy/modal_app.py::crewai --gpu l4 --model qwen2.5:14b --repeats 2` (pull it first).
+- Step 4 (3.6 keep/kill) tooling DONE: `run_tasks.py --lanes b,b-no_<stage>,...`; presets derived
+  from one stage list (old no_semantic/no_evict also silently disabled fidelity); per-run proxy
+  telemetry (compactions, fidelity fallbacks, stage savings). Ablation run `ablation_7b_t4` started
+  detached; fetch with `modal volume get contextgc-results ablation_7b_t4 backend/benchmark/results/modal/`.
+  Observation: the anchored state block is mostly nulls + log lines (weak; see ablation result).
+- Phase 4 dashboard DONE: `/dashboard` (live gauges, prompt-size chart with compaction markers,
+  prompt diff, results viewer + race chart). Telemetry now carries Ollama stats (cached tokens,
+  load time) and a compaction flag. 113 tests pass.
+- Fixed: `demo_repository/data/` was gitignored (incident log missing on GitHub).
+- Uncommitted: all of the above + README user guide + this file.
+- Gotcha: on Windows, piping `modal run` output needs `PYTHONUTF8=1 PYTHONIOENCODING=utf-8`.
+  Use `modal run --detach` for long runs so they survive a closed session.
+
+## Step 1: confirm the fidelity fix on the GPU (~15 min, ~$0.15)
+
+```
+modal run deploy/modal_app.py::main --gpu t4 --models qwen2.5:7b --tasks fix_path_join --repeats 3 --small-num-ctx 8192
+```
+
+- Hoped for: A1 passes, A2 fails, B passes with far fewer prefilled tokens than A1.
+- If B fails: read the trace in `backend/benchmark/results/modal/<tag>/*.json` (per-step tools,
+  args, prompt_eval_count). Decide whether GC dropped needed context or the model erred; fix first.
+
+## Step 2: make CrewAI a real with/without-ContextGC test (plan 3.4.4)
+
+Files: `crewai_agent/code_maintenance_agent.py`, `crewai_agent/incident_response_agent.py`.
+
+- [ ] Switch from the `/v1` endpoint (Ollama ignores `num_ctx` there) to the native API
+      (`ollama_chat/<model>` with base URL `http://localhost:11400`, no `/v1`), and pass `num_ctx`.
+- [ ] Default model `qwen2.5:7b` instead of `llama3.2:3b`.
+- [ ] Run two lanes with the same small window: raw Ollama (11434) vs. ContextGC proxy (11400).
+      Record pass/fail, tokens, wall time, reloads, cache hit ratio. Repeats + reset of the demo repo per run.
+- [ ] Add `crewai` to the Modal image and a `crewai` entrypoint in `deploy/modal_app.py`.
+- [ ] Smoke-test on T4, then several repeats.
+
+## Step 3: full benchmark (1–3 GPU hours, ~$3–10)
+
+```
+modal run deploy/modal_app.py::main --gpu t4 --models qwen2.5:7b --small-num-ctx 8192
+modal run deploy/modal_app.py::pull --models llama3.1:8b
+modal run deploy/modal_app.py::main --gpu l4 --models llama3.1:8b --small-num-ctx 8192
+```
+
+- Optional small sweep over simulated VRAM (e.g. `--overrides 0,8192,6144` with qwen2.5:7b/llama3.1:8b).
+  Note: the VRAM override only changes the window choice, not real GPU memory.
+- Output: pass rate, token savings and speed numbers for the README.
+
+## Step 4: if time allows
+
+- [ ] Plan 3.6 keep/kill per GC stage: ablate stages one at a time with the stage filter; drop
+      stages that do not help.
+- [ ] Write the GPU and CrewAI results into the README with honest caveats (small samples, noise).
+
+## Later
+
+- [ ] Phase 4 dashboard.
+- [ ] Plan 3.7 cross-backend validation (a second model server).
+
+## Known gotchas
+
+- `modal run` must stay attached unless `--detach` is used; results then stay in the
+  `contextgc-results` Volume (`modal volume get contextgc-results <tag> .`).
+- Containers stop by themselves when the script ends; 4-hour timeout cap.
+- In bash heredocs, avoid backslashes when writing to the README (they were mangled once).

@@ -15,6 +15,7 @@ WORKSPACE = Path(os.getenv("AGENT_REPOSITORY", str(ROOT.parent / "demo_repositor
 def build_tools():
     try:
         from crewai.tools import BaseTool
+        from llm_config import resolve_in_repo
     except ImportError as exc:
         raise RuntimeError("CrewAI is not installed. Run: pip install -r requirements.txt") from exc
 
@@ -31,7 +32,7 @@ def build_tools():
         description: str = "Read a relative source or test file from the workspace."
 
         def _run(self, path: str) -> str:
-            target = (WORKSPACE / path).resolve()
+            target = resolve_in_repo(WORKSPACE, path)
             if WORKSPACE.resolve() not in target.parents:
                 return "ERROR: path outside workspace"
             try:
@@ -55,7 +56,7 @@ def build_tools():
         description: str = "Write a source file. Test files are read-only."
 
         def _run(self, path: str, content: str) -> str:
-            target = (WORKSPACE / path).resolve()
+            target = resolve_in_repo(WORKSPACE, path)
             if WORKSPACE.resolve() not in target.parents:
                 return "ERROR: path outside workspace"
             if target.name.startswith("test_"):
@@ -68,27 +69,26 @@ def build_tools():
 
 def run() -> dict:
     try:
-        from crewai import Agent, Crew, LLM, Process, Task
+        from crewai import Agent, Crew, Process, Task
     except ImportError as exc:
         raise RuntimeError("CrewAI is not installed. Run: pip install -r requirements.txt") from exc
 
-    base_url = os.getenv("AGENT_BASE_URL", "http://localhost:11400/v1")
-    model = os.getenv("AGENT_MODEL", "llama3.2:3b")
-    llm = LLM(model=f"ollama/{model}", base_url=base_url,
-              api_key="contextgc-demo", temperature=0)
+    from llm_config import make_llm, settings, usage
+
+    s = settings()
     tools = build_tools()
 
     investigator = Agent(
         role="Senior repository investigator",
         goal="Diagnose the failing repository using evidence from files and pytest.",
         backstory="You inspect carefully and never edit source files.",
-        tools=tools[:3], llm=llm, verbose=True,
+        tools=tools[:3], llm=make_llm("investigator"), verbose=True, max_iter=15,
     )
     maintainer = Agent(
         role="Test-driven Python maintainer",
         goal="Make the smallest correct source-only fix and prove it with pytest.",
         backstory="You never change tests and always run the final checker.",
-        tools=tools, llm=llm, verbose=True,
+        tools=tools, llm=make_llm("maintainer"), verbose=True, max_iter=15,
     )
     diagnosis = Task(
         description=(
@@ -113,16 +113,18 @@ def run() -> dict:
     check = subprocess.run(["python", "-m", "pytest", "-q"], cwd=WORKSPACE,
                            capture_output=True, text=True, timeout=30)
     result = {
-        "base_url": base_url,
-        "model": model,
+        "base_url": s["base_url"],
+        "model": s["model"],
+        "num_ctx": s["num_ctx"],
+        "run_id": s["run_id"],
         "workspace": str(WORKSPACE),
         "passed": check.returncode == 0,
+        "usage": usage(crew, output),
         "pytest": (check.stdout + check.stderr)[-4000:],
         "crew_output": str(output)[-4000:],
     }
-    results = ROOT / "results"
-    results.mkdir(exist_ok=True)
-    (results / "last_run.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+    from llm_config import write_result
+    write_result(result, "last_run.json", ROOT / "results")
     return result
 
 
@@ -133,6 +135,8 @@ def main() -> None:
     if not WORKSPACE.exists():
         raise SystemExit(f"Repository does not exist: {WORKSPACE}")
     print(json.dumps(run(), indent=2))
+    from llm_config import hard_exit
+    hard_exit()
 
 
 if __name__ == "__main__":

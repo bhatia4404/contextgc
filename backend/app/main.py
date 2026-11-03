@@ -22,11 +22,12 @@ import hashlib
 import json
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import AsyncIterator
 
 import httpx
 from fastapi import FastAPI, Request, Response, WebSocket
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
 from app.core import store as store_mod
 from app.core import gc, telemetry, vram, capacity
@@ -38,7 +39,8 @@ from app import config
 FORWARD_PREFIXES = ("/api/", "/v1/")
 # Health/identity endpoints that belong to ContextGC itself.
 OWN_PATHS = ("/healthz", "/ws/telemetry", "/telemetry/recent",
-             "/store/stats", "/store/recent", "/store")
+             "/store/stats", "/store/recent", "/store", "/dashboard")
+DASHBOARD_HTML = Path(__file__).resolve().parent / "static" / "dashboard.html"
 
 
 @asynccontextmanager
@@ -97,6 +99,52 @@ async def healthz() -> JSONResponse:
             "gc_enabled": settings.gc_enabled,
         }
     )
+
+
+@app.get("/dashboard")
+async def dashboard() -> FileResponse:
+    """Phase 4: live telemetry, prompt diff and benchmark-results viewer."""
+    return FileResponse(DASHBOARD_HTML, media_type="text/html")
+
+
+RESULT_ROOTS = {"benchmark": Path(__file__).resolve().parents[1] / "benchmark" / "results",
+                "crewai": Path(__file__).resolve().parents[2] / "crewai_agent" / "results"}
+
+
+@app.get("/dashboard/results")
+async def dashboard_results() -> JSONResponse:
+    """Benchmark result files on this machine, newest first, for the results tab."""
+    files = []
+    for name, root in RESULT_ROOTS.items():
+        if root.exists():
+            files += [(p.stat().st_mtime, f"{name}/{p.relative_to(root).as_posix()}")
+                      for p in root.rglob("*.json") if p.is_file()]
+    return JSONResponse({"files": [f for _, f in sorted(files, reverse=True)]})
+
+
+@app.get("/dashboard/results/{name:path}")
+async def dashboard_result(name: str) -> Response:
+    root_name, _, rel = name.partition("/")
+    root = RESULT_ROOTS.get(root_name)
+    if root is None:
+        return JSONResponse({"error": "unknown results folder"}, status_code=404)
+    target = (root / rel).resolve()
+    if root.resolve() not in target.parents or target.suffix != ".json" or not target.is_file():
+        return JSONResponse({"error": "not a results file"}, status_code=404)
+    return FileResponse(target, media_type="application/json")
+
+
+@app.get("/dashboard/ps")
+async def dashboard_ps() -> JSONResponse:
+    """Ollama's /api/ps, fetched directly so polling is not recorded as turns."""
+    settings = config.get_settings()
+    if not settings.sink_is_ollama:
+        return JSONResponse({"models": [], "note": "sink is not Ollama"})
+    try:
+        r = await app.state.http_client.get(f"{settings.ollama_base_url}/api/ps")
+        return JSONResponse(r.json(), status_code=r.status_code)
+    except Exception as exc:
+        return JSONResponse({"models": [], "error": f"{type(exc).__name__}: {exc}"}, status_code=502)
 
 
 @app.websocket("/ws/telemetry")
@@ -167,6 +215,32 @@ def _derived_run_id(body: bytes, path: str) -> str:
     except Exception:
         seed = path + body[:4096].decode("utf-8", errors="replace")
     return "derived-" + hashlib.blake2b(seed.encode("utf-8"), digest_size=12).hexdigest()
+
+
+_STATS_TAIL_BYTES = 8192   # Ollama's final stats object is the last line of the body
+_STAT_KEYS = ("prompt_eval_count", "prompt_eval_cached_count", "eval_count",
+              "load_duration", "prompt_eval_duration", "eval_duration")
+
+
+def _ollama_stats(tail: bytes) -> dict | None:
+    """Ollama's own per-request numbers (cache hits, reloads) from the last
+    JSON line of the forwarded response; None for anything else."""
+    for line in reversed(tail.decode("utf-8", errors="replace").splitlines()):
+        line = line.strip().removeprefix("data:").strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            obj = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(obj, dict) or "prompt_eval_count" not in obj:
+            return None
+        stats = {k: obj[k] for k in _STAT_KEYS if obj.get(k) is not None}
+        for k in ("load_duration", "prompt_eval_duration", "eval_duration"):
+            if k in stats:                       # nanoseconds -> seconds
+                stats[k.replace("_duration", "_s")] = round(stats.pop(k) / 1e9, 3)
+        return stats
+    return None
 
 
 _last_vram: dict | None = None  # freshest sampler snapshot (sampler sets it)
@@ -257,13 +331,18 @@ async def _forward(request: Request, path: str) -> Response:
 
     async def byte_iter() -> AsyncIterator[bytes]:
         ttft: float | None = None
+        tail = b""
         try:
             async for chunk in resp.aiter_bytes():
                 if ttft is None:  # first BYTE from the sink = TTFT milestone
                     ttft = time.perf_counter() - t_start
+                tail = (tail + chunk)[-_STATS_TAIL_BYTES:]
                 yield chunk
         finally:
             await resp.aclose()
+            stats = _ollama_stats(tail)
+            if stats:
+                report["ollama_stats"] = stats
             try:
                 clean_payload = json.loads(body)
                 model = clean_payload.get("model")

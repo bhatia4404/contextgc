@@ -83,6 +83,20 @@ def test_dump_offloaded_and_file_written(stage_env, tmp_path):
     assert t["tokens_saved_estimate"] == offl["tokens_before"] - offl["tokens_after"]
 
 
+def test_same_conversation_gives_same_pointer_text_in_every_run(stage_env):
+    # Ref ids are per run and the prompt carries no file path or timestamp, so
+    # repeated runs of one task send byte-identical prompts (reproducible at T=0).
+    def clean(run_id):
+        payload = _payload(_tool_msg(id="1"), _tool_msg(id="2"), _tool_msg(id="3"))
+        payload["options"] = {"num_ctx": 32768}
+        out, _ = process_payload("/api/chat", json.dumps(payload).encode(), run_id=run_id)
+        return json.loads(out)["messages"]
+    first, second = clean("run-one"), clean("run-two")
+    assert first == second
+    assert any("Tool Output Ref #1 " in str(m.get("content")) for m in first)
+    assert not any("scratchpad" in str(m.get("content")) for m in first)
+
+
 def test_summary_extraction_prioritizes_status():
     assert "FAILED: 3 tests failed." in _extract_summary(DUMP)
     plain = "started\nrunning\ndone"           # no status words

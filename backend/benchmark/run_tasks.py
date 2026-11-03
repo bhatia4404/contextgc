@@ -7,6 +7,12 @@ tool-using agent loop over Ollama's native /api/chat, in three lanes:
     A2  raw Ollama, small window    (what truncation does)
     B   ContextGC proxy, small window
 
+Plan 3.6 keep/kill ablation: a lane `b-<preset>` is lane B with the proxy's
+stage preset (x-contextgc-stages), e.g. `b-no_semantic`, `b-no_state`,
+`b-no_fidelity`, `b-none` (proxy only, no GC). Every proxied run also records
+the proxy's telemetry for that run: requests, compactions, fidelity
+fallbacks and tokens saved per stage.
+
 Each task starts from a history that already holds earlier exploration output
 (`--pad-tokens`, deterministic CI-log noise), the way a long agent session
 does. Without it the tiny fixtures never fill a 4k window and the lanes
@@ -20,6 +26,7 @@ Usage (Ollama on :11434, proxy with CONTEXTGC_GC_ENABLED=true on :11400):
     cd backend
     python benchmark/run_tasks.py --repeats 3
     python benchmark/run_tasks.py --tasks fix_failing_sum --lanes b --repeats 1  # smoke
+    python benchmark/run_tasks.py --lanes b,b-no_semantic,b-no_state,b-no_fidelity  # 3.6 ablation
 """
 from __future__ import annotations
 
@@ -173,7 +180,8 @@ def padding_messages(pad_tokens: int, chunks: int = 3) -> list[dict]:
 # --- one agent run ----------------------------------------------------------
 
 def run_task(client: httpx.Client, base: str, model: str, task, window: int,
-             run_id: str, proxy: bool, max_steps: int, pad_tokens: int) -> dict:
+             run_id: str, proxy: bool, max_steps: int, pad_tokens: int,
+             stages: str | None = None) -> dict:
     with tempfile.TemporaryDirectory(prefix=f"cgc-{task.name}-") as directory:
         root = Path(directory)
         task.materialize(root)
@@ -184,6 +192,8 @@ def run_task(client: httpx.Client, base: str, model: str, task, window: int,
                     {"role": "user", "content": task.prompt}] + padding_messages(pad_tokens)
         steps, ollama_rows, errors, done, streak = [], [], 0, False, 0
         headers = {"x-contextgc-run": run_id} if proxy else {}
+        if proxy and stages:
+            headers["x-contextgc-stages"] = stages
         t0 = time.perf_counter()
         for step in range(max_steps):
             payload = {"model": model, "messages": messages, "tools": TOOLS, "stream": False,
@@ -276,6 +286,46 @@ def residency(client: httpx.Client, ollama_url: str, model: str) -> dict:
     return {}
 
 
+def gc_telemetry(client: httpx.Client, proxy_url: str, run_id: str) -> dict:
+    """What the proxy did during one run, from its telemetry ring buffer."""
+    try:
+        events = client.get(f"{proxy_url}/telemetry/recent", params={"n": 500}).json()["events"]
+    except Exception as exc:
+        return {"error": f"{type(exc).__name__}: {exc}"}
+    mine = [e for e in events if e.get("run_id") == run_id]
+    stage_saved: dict[str, int] = {}
+    for e in mine:
+        for stage, n in (e.get("stage_tokens_saved") or {}).items():
+            stage_saved[stage] = stage_saved.get(stage, 0) + int(n or 0)
+    return {"requests": len(mine),
+            "compactions": sum(1 for e in mine if e.get("compaction")),
+            "fidelity_fallbacks": sum(1 for e in mine
+                                      if ((e.get("meta") or {}).get("fidelity_fallback") or {}).get("triggered")),
+            "raw_tokens_est": sum(e.get("raw_tokens") or 0 for e in mine),
+            "clean_tokens_est": sum(e.get("clean_tokens") or 0 for e in mine),
+            "stage_tokens_saved": stage_saved}
+
+
+def parse_lanes(spec: str, windows: dict, args) -> dict:
+    """'a1,a2,b,b-no_semantic' -> {lane: (key, base_url, window, proxied, stages_preset)}."""
+    from app.core.gc import _STAGE_PRESETS
+
+    lanes = {}
+    for lane in (x.strip() for x in spec.split(",") if x.strip()):
+        if lane == "a1":
+            lanes[lane] = ("A1", args.ollama_url, windows["a1"], False, None)
+        elif lane == "a2":
+            lanes[lane] = ("A2", args.ollama_url, windows["small"], False, None)
+        elif lane == "b":
+            lanes[lane] = ("B", args.proxy_url, windows["small"], True, None)
+        elif lane.startswith("b-") and lane[2:] in _STAGE_PRESETS:
+            lanes[lane] = (f"B:{lane[2:]}", args.proxy_url, windows["small"], True, lane[2:])
+        else:
+            sys.exit(f"[tasks] unknown lane {lane!r}: use a1, a2, b or b-<preset> "
+                     f"with a preset from {sorted(_STAGE_PRESETS)}")
+    return lanes
+
+
 def resolve_windows(args) -> dict:
     """Turn 'auto' settings into numbers for this machine.
 
@@ -308,7 +358,10 @@ def summarize(rows: list[dict]) -> dict:
             "min_gpu_fraction": min((r["residency"].get("gpu_fraction") for r in rows
                                      if r.get("residency", {}).get("gpu_fraction") is not None),
                                     default=None),
-            "prefilled_tokens_est": sum(r["prefilled_tokens_est"] or 0 for r in rows)}
+            "prefilled_tokens_est": sum(r["prefilled_tokens_est"] or 0 for r in rows),
+            "prompt_eval_tokens": sum(r["prompt_eval_tokens"] or 0 for r in rows),
+            "compactions": sum((r.get("gc") or {}).get("compactions") or 0 for r in rows),
+            "fidelity_fallbacks": sum((r.get("gc") or {}).get("fidelity_fallbacks") or 0 for r in rows)}
 
 
 def main() -> None:
@@ -336,10 +389,9 @@ def main() -> None:
                "vram_override_mb": os.getenv("CONTEXTGC_VRAM_OVERRIDE_MB")}
     print(f"[tasks] windows: small={windows['small']} a1={windows['a1']} pad={windows['pad']} "
           f"(vram source: {windows['probe'].get('source')})", flush=True)
-    lanes = {"a1": ("A1", args.ollama_url, windows["a1"], False),
-             "a2": ("A2", args.ollama_url, windows["small"], False),
-             "b": ("B", args.proxy_url, windows["small"], True)}
-    order = [x.strip() for x in args.lanes.split(",") if x.strip()]
+    lanes = parse_lanes(args.lanes, windows, args)
+    order = list(lanes)
+    keys = [lanes[lane][0] for lane in order]
     wanted = {x.strip() for x in args.tasks.split(",") if x.strip()}
     tasks = [t for t in TASKS if not wanted or t.name in wanted]
 
@@ -351,30 +403,37 @@ def main() -> None:
             rotated = order[rep % len(order):] + order[:rep % len(order)]
             for task in tasks:
                 for lane in rotated:
-                    key, base, window, proxy = lanes[lane]
+                    key, base, window, proxy, stages = lanes[lane]
                     # Straight to Ollama: through the proxy a header-less warm-up gets a
                     # derived run id that may already be pinned to another window.
                     warmup(client, args.ollama_url, args.model, window)
                     run_id = f"{args.tag}-{key}-{task.name}-r{rep}-{time.time_ns()}"
                     result = run_task(client, base, args.model, task, window, run_id,
-                                      proxy, args.max_steps, windows["pad"])
+                                      proxy, args.max_steps, windows["pad"], stages)
                     result.update(lane=key, repeat=rep + 1, window=window,
                                   residency=residency(client, args.ollama_url, args.model))
+                    if proxy:
+                        result["gc"] = gc_telemetry(client, args.proxy_url, run_id)
                     runs.append(result)
+                    gc = result.get("gc") or {}
                     print(f"[r{rep + 1}] {key:2} {task.name:24} "
                           f"{'PASS' if result['passed'] else 'fail'} steps={result['steps']} "
                           f"wall={result['wall_s']}s reloads={result['reloads']} "
                           f"cache={result['cache_hit_ratio']} "
-                          f"gpu={result['residency'].get('gpu_fraction')}", flush=True)
+                          f"gpu={result['residency'].get('gpu_fraction')}"
+                          + (f" compactions={gc.get('compactions')} fidelity={gc.get('fidelity_fallbacks')}"
+                             if proxy else ""), flush=True)
                     summary = {k: summarize([r for r in runs if r["lane"] == k])
-                               for k in ("A1", "A2", "B") if any(r["lane"] == k for r in runs)}
+                               for k in keys if any(r["lane"] == k for r in runs)}
                     out.write_text(json.dumps({"args": vars(args), "machine": machine,
                                                "summary": summary, "runs": runs},
                                               indent=2, default=str), encoding="utf-8")
-    print(f"\n{'lane':6}{'pass':>10}{'wall s':>10}{'reloads':>9}{'cache':>8}{'prefilled':>11}")
+    print(f"\n{'lane':16}{'pass':>10}{'wall s':>10}{'reloads':>9}{'cache':>8}{'prefilled':>11}"
+          f"{'prompt tok':>12}{'fidelity':>10}")
     for key, s in summary.items():
-        print(f"{key:6}{s['passed']:>5}/{s['runs']:<4}{s['total_wall_s']:>10}{s['reloads']:>9}"
-              f"{str(s['avg_cache_hit_ratio']):>8}{s['prefilled_tokens_est']:>11}")
+        print(f"{key:16}{s['passed']:>5}/{s['runs']:<4}{s['total_wall_s']:>10}{s['reloads']:>9}"
+              f"{str(s['avg_cache_hit_ratio']):>8}{s['prefilled_tokens_est']:>11}"
+              f"{s['prompt_eval_tokens']:>12}{s['fidelity_fallbacks']:>10}")
     print(f"[tasks] results written: {out}")
 
 

@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ContextGC Dashboard</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --raised: #ffffff;
+  --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10);
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --s7: #6250d6; --s8: #e34948;
+  --good: #0ca30c; --critical: #d03b3b; --warning: #fab219;
+  --mark-added: rgba(42,120,214,0.10); --mark-changed: rgba(235,104,52,0.12);
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --raised: #222221;
+    --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+    --mark-added: rgba(57,135,229,0.16); --mark-changed: rgba(217,89,38,0.18);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --raised: #222221;
+  --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+  --mark-added: rgba(57,135,229,0.16); --mark-changed: rgba(217,89,38,0.18);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink);
+       font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
+         padding: 14px 24px; border-bottom: 1px solid var(--border); background: var(--surface); }
+h1 { font-size: 18px; margin: 0; }
+h2 { font-size: 15px; margin: 0 0 10px; }
+.pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.pill { border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; color: var(--ink-2); background: var(--raised); }
+.pill b { color: var(--ink); font-weight: 600; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; background: var(--muted); }
+.dot.ok { background: var(--good); } .dot.bad { background: var(--critical); }
+nav { display: flex; gap: 4px; padding: 0 24px; background: var(--surface); border-bottom: 1px solid var(--border); }
+nav button { border: 0; background: none; color: var(--ink-2); padding: 10px 12px; font: inherit; cursor: pointer;
+             border-bottom: 2px solid transparent; }
+nav button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--s1); font-weight: 600; }
+main { padding: 20px 24px 40px; max-width: 1280px; margin: 0 auto; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.tile { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+.tile .label { color: var(--ink-2); font-size: 12px; }
+.tile .value { font-size: 24px; font-weight: 600; margin-top: 2px; }
+.tile .sub { color: var(--muted); font-size: 12px; }
+.row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 10px; }
+select, input[type=file] { font: inherit; color: var(--ink); background: var(--raised); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; }
+.muted { color: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--ink-2); margin: 6px 0; }
+.legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.tip { position: absolute; pointer-events: none; background: var(--raised); color: var(--ink); border: 1px solid var(--border);
+       border-radius: 8px; padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); display: none; white-space: nowrap; z-index: 2; }
+.tip .k { color: var(--ink-2); }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th:first-child, td:first-child, th.l, td.l { text-align: left; }
+th { color: var(--ink-2); font-weight: 600; font-size: 12px; }
+tbody tr.click { cursor: pointer; }
+tbody tr.click:hover, tbody tr.sel { background: var(--mark-added); }
+.status { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; }
+.status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.status.pass { color: var(--good); } .status.fail { color: var(--critical); }
+.status.pass::after { content: "PASS"; color: var(--ink); font-weight: 600; }
+.status.fail::after { content: "fail"; color: var(--ink); font-weight: 600; }
+.flag { font-size: 11px; border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; margin-left: 4px; color: var(--ink-2); }
+.diff { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.msg { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; background: var(--raised); }
+.msg.changed { background: var(--mark-changed); } .msg.added { background: var(--mark-added); }
+.msg .meta { color: var(--ink-2); font-size: 12px; margin-bottom: 4px; display: flex; justify-content: space-between; gap: 8px; }
+.msg pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: 12px/1.4 ui-monospace, Consolas, monospace; max-height: 220px; overflow: auto; }
+.drop { border: 2px dashed var(--axis); border-radius: 10px; padding: 18px; text-align: center; color: var(--ink-2); }
+.drop.over { border-color: var(--s1); color: var(--ink); }
+[hidden] { display: none !important; }
+@media (max-width: 720px) {
+  header, nav, main { padding-left: 16px; padding-right: 16px; }
+  .diff { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>ContextGC</h1>
+  <div class="pills">
+    <span class="pill" id="pill-conn"><span class="dot"></span>connecting</span>
+    <span class="pill" id="pill-gc">GC: <b>…</b></span>
+    <span class="pill" id="pill-model">model: <b>…</b></span>
+  </div>
+</header>
+<nav role="tablist">
+  <button role="tab" aria-selected="true" data-tab="live">Live</button>
+  <button role="tab" aria-selected="false" data-tab="results">Benchmark results</button>
+</nav>
+
+<main>
+<section id="tab-live">
+  <div class="tiles" id="live-tiles"></div>
+  <div class="card">
+    <div class="row">
+      <h2 style="margin:0">Prompt size per request</h2>
+      <label class="muted">run <select id="run-select"></select></label>
+    </div>
+    <div class="legend"><span><i style="background:var(--s2)"></i>sent by the agent (raw)</span>
+      <span><i style="background:var(--s1)"></i>forwarded to the model (clean)</span>
+      <span><i style="background:var(--muted);height:10px;width:2px"></i>compaction</span></div>
+    <div class="chart" id="live-chart"></div>
+    <p class="muted" id="live-empty">No requests yet. Point an agent at this proxy, or run
+      <code>python scripts/smoke_test.py</code> from <code>backend/</code>.</p>
+  </div>
+  <div class="card">
+    <h2>Requests in this run <span class="muted" style="font-weight:400">(click one to see what changed)</span></h2>
+    <div class="tablewrap"><table id="turn-table"><thead><tr>
+      <th>turn</th><th>raw tok</th><th>clean tok</th><th>saved</th><th class="l">stages</th>
+      <th>cached by Ollama</th><th>first token</th><th class="l">flags</th></tr></thead><tbody></tbody></table></div>
+  </div>
+  <div class="card" id="diff-card" hidden>
+    <h2 id="diff-title">Prompt diff</h2>
+    <p class="muted">Left: what the agent sent. Right: what ContextGC forwarded. Highlighted messages differ.</p>
+    <div class="diff"><div id="diff-raw"></div><div id="diff-clean"></div></div>
+  </div>
+</section>
+
+<section id="tab-results" hidden>
+  <div class="card">
+    <div class="row"><label>Results on this machine <select id="res-pick"><option value="">choose a file…</option></select></label>
+      <span class="muted" id="res-count"></span></div>
+    <div class="drop" id="drop">or drop a results JSON here / <input type="file" id="file" accept=".json,application/json"><br>
+      <span class="muted">run_tasks files from <code>backend/benchmark/results/</code>, CrewAI A/B files from <code>crewai_agent/results/</code></span></div>
+  </div>
+  <div id="results" hidden>
+    <div class="card"><h2 id="res-title">Summary per lane</h2>
+      <div class="tablewrap"><table id="res-summary"></table></div></div>
+    <div class="card"><h2>Prompt tokens processed per lane <span class="muted" style="font-weight:400">(lower is cheaper)</span></h2>
+      <div class="chart" id="res-bars"></div></div>
+    <div class="card"><h2>Pass / fail per task</h2>
+      <div class="tablewrap"><table id="res-grid"></table></div></div>
+    <div class="card" id="race-card"><div class="row"><h2 style="margin:0">Race: prompt tokens at each step</h2>
+      <label class="muted">task <select id="race-task"></select></label></div>
+      <div class="legend" id="race-legend"></div>
+      <div class="chart" id="race-chart"></div></div>
+  </div>
+</section>
+</main>
+
+<script>
+"use strict";
+const $ = (s, el = document) => el.querySelector(s);
+const fmt = n => n == null ? "–" : Number(n).toLocaleString();
+const pct = (a, b) => b ? Math.round(a / b * 1000) / 10 + "%" : "–";
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const SERIES = ["--s1", "--s2", "--s3", "--s4", "--s5", "--s6", "--s7", "--s8"].map(v => `var(${v})`);
+const CHAT = /\/(api\/chat|api\/generate|v1\/chat\/completions)$/;
+
+// ---------- tabs ----------
+document.querySelectorAll("nav button").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll("nav button").forEach(x => x.setAttribute("aria-selected", x === b));
+  $("#tab-live").hidden = b.dataset.tab !== "live";
+  $("#tab-results").hidden = b.dataset.tab !== "results";
+  try { localStorage.setItem("cgc-tab", b.dataset.tab); } catch (e) {}
+}));
+try { const t = localStorage.getItem("cgc-tab"); if (t) $(`nav button[data-tab="${t}"]`)?.click(); } catch (e) {}
+
+// ---------- line chart (one y-axis, crosshair tooltip) ----------
+function lineChart(el, {series, xLabel, markers = [], height = 260, onPick}) {
+  const W = Math.max(320, el.clientWidth || 900), H = height, m = {l: 56, r: 16, t: 12, b: 34};
+  const xs = series.flatMap(s => s.points.map(p => p.x)), ys = series.flatMap(s => s.points.map(p => p.y));
+  if (!xs.length) { el.innerHTML = ""; return; }
+  const x0 = Math.min(...xs), x1 = Math.max(...xs, x0 + 1), yMax = niceMax(Math.max(...ys, 1));
+  const X = x => m.l + (x - x0) / (x1 - x0) * (W - m.l - m.r), Y = y => H - m.b - y / yMax * (H - m.t - m.b);
+  const ticks = [0, .25, .5, .75, 1].map(f => f * yMax);
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(xLabel)} chart">`;
+  for (const t of ticks) svg += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(t)}" y2="${Y(t)}" stroke="var(--grid)"/>` +
+    `<text x="${m.l - 8}" y="${Y(t) + 4}" text-anchor="end">${short(t)}</text>`;
+  svg += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--axis)"/>`;
+  const xt = xTicks(x0, x1);
+  for (const t of xt) svg += `<text x="${X(t)}" y="${H - m.b + 16}" text-anchor="middle">${t}</text>`;
+  svg += `<text x="${(m.l + W - m.r) / 2}" y="${H - 2}" text-anchor="middle">${esc(xLabel)}</text>`;
+  for (const mk of markers) svg += `<line x1="${X(mk)}" x2="${X(mk)}" y1="${m.t}" y2="${H - m.b}" stroke="var(--muted)" stroke-dasharray="3 3"/>`;
+  for (const s of series) {
+    const d = s.points.map((p, i) => `${i ? "L" : "M"}${X(p.x).toFixed(1)},${Y(p.y).toFixed(1)}`).join("");
+    svg += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round"/>`;
+    if (s.points.length <= 60) for (const p of s.points)
+      svg += `<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="4" fill="${s.color}" stroke="var(--surface)" stroke-width="2"/>`;
+  }
+  svg += `<line class="xh" y1="${m.t}" y2="${H - m.b}" stroke="var(--axis)" visibility="hidden"/>` +
+         `<rect x="${m.l}" y="${m.t}" width="${W - m.l - m.r}" height="${H - m.t - m.b}" fill="transparent"/></svg>`;
+  el.innerHTML = svg + `<div class="tip"></div>`;
+  const svgEl = $("svg", el), tip = $(".tip", el), xh = $(".xh", el);
+  const allX = [...new Set(xs)].sort((a, b) => a - b);
+  const nearest = evt => {
+    const r = svgEl.getBoundingClientRect(), px = (evt.clientX - r.left) / r.width * W;
+    return allX.reduce((best, x) => Math.abs(X(x) - px) < Math.abs(X(best) - px) ? x : best, allX[0]);
+  };
+  svgEl.addEventListener("mousemove", evt => {
+    const x = nearest(evt), r = svgEl.getBoundingClientRect();
+    xh.setAttribute("x1", X(x)); xh.setAttribute("x2", X(x)); xh.setAttribute("visibility", "visible");
+    tip.innerHTML = `<div><b>${esc(xLabel)} ${x}</b>${markers.includes(x) ? ' <span class="flag">compaction</span>' : ""}</div>` +
+      series.map(s => { const p = s.points.find(q => q.x === x);
+        return p ? `<div><span class="dot" style="background:${s.color}"></span><span class="k">${esc(s.name)}</span> <b>${fmt(p.y)}</b></div>` : ""; }).join("");
+    tip.style.display = "block";
+    const left = X(x) / W * r.width;
+    tip.style.left = Math.min(left + 12, r.width - tip.offsetWidth - 4) + "px"; tip.style.top = "8px";
+  });
+  svgEl.addEventListener("mouseleave", () => { tip.style.display = "none"; xh.setAttribute("visibility", "hidden"); });
+  if (onPick) svgEl.addEventListener("click", evt => onPick(nearest(evt)));
+}
+function barChart(el, rows) {   // rows: [{label, value, note}] one series, one hue
+  const W = Math.max(320, el.clientWidth || 900), rowH = 34, m = {l: 130, r: 90, t: 4, b: 4};
+  const H = m.t + m.b + rows.length * rowH, max = niceMax(Math.max(...rows.map(r => r.value), 1));
+  const X = v => m.l + v / max * (W - m.l - m.r);
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="bar chart">`;
+  rows.forEach((r, i) => {
+    const y = m.t + i * rowH + 6, h = rowH - 12, w = Math.max(2, X(r.value) - m.l);
+    svg += `<text x="${m.l - 10}" y="${y + h / 2 + 4}" text-anchor="end" style="fill:var(--ink-2)">${esc(r.label)}</text>` +
+      `<path d="M${m.l},${y}h${w - 4}a4,4 0 0 1 4,4v${h - 8}a4,4 0 0 1 -4,4h${-(w - 4)}z" fill="var(--s1)"><title>${esc(r.label)}: ${fmt(r.value)}</title></path>` +
+      `<text x="${m.l + w + 8}" y="${y + h / 2 + 4}" style="fill:var(--ink)">${short(r.value)}${r.note ? " · " + esc(r.note) : ""}</text>`;
+  });
+  el.innerHTML = svg + `<line x1="${m.l}" x2="${m.l}" y1="0" y2="${H}" stroke="var(--axis)"/></svg>`;
+}
+function niceMax(v) { const p = 10 ** Math.floor(Math.log10(v)); return Math.ceil(v / p * 2) / 2 * p; }
+function short(v) { return v >= 1e6 ? (v / 1e6).toFixed(1) + "M" : v >= 1e3 ? Math.round(v / 100) / 10 + "k" : Math.round(v); }
+function xTicks(a, b) { const n = b - a, step = Math.max(1, Math.ceil(n / 10)); const t = []; for (let x = a; x <= b; x += step) t.push(x); return t; }
+
+// ---------- live ----------
+const turns = [];            // turn_telemetry events, chat paths only
+let selectedRun = null, lastVram = null;
+
+// A load after a run's first request means the model was reloaded mid-run
+// (window change or eviction); the first request's load is just startup.
+function isReload(t) {
+  if ((t.ollama?.load_s || 0) <= 0.5) return false;
+  return turns.find(x => x.run_id === t.run_id) !== t;
+}
+const hashParam = k => new URLSearchParams(location.hash.slice(1)).get(k);
+
+function addEvent(e) {
+  if (e.type === "vram_sample") { lastVram = e; return; }
+  if (e.type !== "turn_telemetry" || !CHAT.test(e.path || "")) return;
+  if (turns.some(t => t.id === e.id)) return;
+  turns.push(e);
+  scheduleRender();
+  if (hashParam("turn") === String(e.turn_id)) { selectedRun = e.run_id; setTimeout(() => showDiff(e), 50); }
+}
+let pending = false;
+function scheduleRender() { if (!pending) { pending = true; requestAnimationFrame(() => { pending = false; renderLive(); }); } }
+
+function renderLive() {
+  const runs = [...new Set(turns.map(t => t.run_id))];
+  const sel = $("#run-select");
+  if (!selectedRun || !runs.includes(selectedRun)) selectedRun = runs[runs.length - 1] || null;
+  sel.innerHTML = runs.slice().reverse().map(r => `<option ${r === selectedRun ? "selected" : ""}>${esc(r)}</option>`).join("");
+  const raw = turns.reduce((a, t) => a + (t.raw_tokens || 0), 0), clean = turns.reduce((a, t) => a + (t.clean_tokens || 0), 0);
+  const withStats = turns.filter(t => t.ollama && t.ollama.prompt_eval_count);
+  const prompt = withStats.reduce((a, t) => a + t.ollama.prompt_eval_count, 0);
+  const cached = withStats.reduce((a, t) => a + (t.ollama.prompt_eval_cached_count || 0), 0);
+  const reloads = withStats.filter(isReload).length;
+  $("#live-tiles").innerHTML = [
+    ["Requests", fmt(turns.length), `${runs.length} run(s)`],
+    ["Tokens saved", short(Math.max(raw - clean, 0)), `${pct(raw - clean, raw)} of ${short(raw)} sent (estimate)`],
+    ["Served from Ollama's cache", withStats.length ? pct(cached, prompt) : "–", withStats.length ? `${short(cached)} of ${short(prompt)} prompt tokens` : "native /api/chat only"],
+    ["Compactions", fmt(turns.filter(t => t.compaction).length), "each rebuilds the cache once"],
+    ["Loop fallbacks", fmt(turns.filter(t => t.meta?.fidelity_fallback?.triggered).length), "raw history sent on a loop"],
+    ["Model reloads", withStats.length ? fmt(reloads) : "–", "mid-run loads; should stay 0"],
+  ].map(([l, v, s]) => `<div class="tile"><div class="label">${l}</div><div class="value">${v}</div><div class="sub">${s}</div></div>`).join("");
+
+  const mine = turns.filter(t => t.run_id === selectedRun);
+  $("#live-empty").hidden = mine.length > 0;
+  const pts = (k) => mine.map((t, i) => ({x: i + 1, y: t[k] || 0}));
+  lineChart($("#live-chart"), {
+    xLabel: "request", markers: mine.map((t, i) => t.compaction ? i + 1 : null).filter(x => x),
+    series: [{name: "raw (sent)", color: SERIES[1], points: pts("raw_tokens")},
+             {name: "clean (forwarded)", color: SERIES[0], points: pts("clean_tokens")}],
+    onPick: x => showDiff(mine[x - 1]),
+  });
+  $("#turn-table tbody").innerHTML = mine.slice().reverse().map(t => {
+    const stages = Object.entries(t.stage_tokens_saved || {}).filter(([, v]) => v).map(([k, v]) => `${k.replace(/^stage1_/, "")} ${short(v)}`).join(", ");
+    const o = t.ollama || {};
+    const flags = [t.compaction && "compaction", t.meta?.fidelity_fallback?.triggered && "loop fallback",
+                   isReload(t) && "reload", (o.load_s || 0) > 0.5 && !isReload(t) && "model load",
+                   t.upstream_status >= 400 && `HTTP ${t.upstream_status}`].filter(Boolean);
+    return `<tr class="click" data-turn="${t.turn_id}"><td>${t.turn_id}</td><td>${fmt(t.raw_tokens)}</td><td>${fmt(t.clean_tokens)}</td>` +
+      `<td>${t.tokens_saved_pct ?? 0}%</td><td class="l">${esc(stages) || '<span class="muted">none</span>'}</td>` +
+      `<td>${o.prompt_eval_count ? pct(o.prompt_eval_cached_count || 0, o.prompt_eval_count) : "–"}</td>` +
+      `<td>${t.ttft_s != null ? t.ttft_s.toFixed(2) + " s" : "–"}</td><td class="l">${flags.map(f => `<span class="flag">${f}</span>`).join("")}</td></tr>`;
+  }).join("");
+  document.querySelectorAll("#turn-table tbody tr").forEach(tr => tr.addEventListener("click",
+    () => showDiff(mine.find(t => String(t.turn_id) === tr.dataset.turn))));
+}
+$("#run-select").addEventListener("change", e => { selectedRun = e.target.value; renderLive(); });
+
+async function showDiff(t) {
+  if (!t) return;
+  document.querySelectorAll("#turn-table tbody tr").forEach(tr => tr.classList.toggle("sel", tr.dataset.turn === String(t.turn_id)));
+  const card = $("#diff-card"); card.hidden = false;
+  $("#diff-title").textContent = `Prompt diff: turn ${t.turn_id} (${fmt(t.raw_tokens)} → ${fmt(t.clean_tokens)} tokens)`;
+  try {
+    const [raw, clean] = await Promise.all([`/store/${t.turn_id}/raw`, `/store/${t.turn_id}/clean`].map(u => fetch(u).then(r => r.json())));
+    const text = m => typeof m.content === "string" ? m.content : JSON.stringify(m.content ?? m.tool_calls ?? "");
+    const rawSet = new Set((raw.messages || []).map(text)), cleanSet = new Set((clean.messages || []).map(text));
+    const render = (msgs, other, cls) => (msgs || []).map((m, i) => {
+      const c = text(m), same = other.has(c);
+      return `<div class="msg ${same ? "" : cls}"><div class="meta"><span>#${i} ${esc(m.role)}${m.tool_calls ? " · tool call" : ""}</span>` +
+        `<span>${fmt(Math.round(c.length / 4))} tok${same ? "" : cls === "changed" ? " · changed/removed" : " · new/rewritten"}</span></div>` +
+        `<pre>${esc(c.length > 3000 ? c.slice(0, 3000) + "\n… (" + fmt(c.length - 3000) + " more chars)" : c)}</pre></div>`;
+    }).join("");
+    $("#diff-raw").innerHTML = `<h2>Sent by the agent</h2>` + render(raw.messages, cleanSet, "changed");
+    $("#diff-clean").innerHTML = `<h2>Forwarded to the model</h2>` + render(clean.messages, rawSet, "added");
+  } catch (err) {
+    $("#diff-raw").innerHTML = `<p class="muted">Could not load turn ${t.turn_id}: ${esc(err)}</p>`; $("#diff-clean").innerHTML = "";
+  }
+  card.scrollIntoView({behavior: "smooth", block: "start"});
+}
+
+async function poll() {
+  try {
+    const h = await fetch("/healthz").then(r => r.json());
+    $("#pill-gc").innerHTML = `<span class="dot ${h.gc_enabled ? "ok" : "bad"}"></span>GC: <b>${h.gc_enabled ? "on" : "off (passthrough)"}</b>`;
+  } catch (e) { $("#pill-gc").innerHTML = `<span class="dot bad"></span>GC: <b>proxy unreachable</b>`; }
+  try {
+    const ps = await fetch("/dashboard/ps").then(r => r.json());
+    const m = (ps.models || [])[0];
+    $("#pill-model").innerHTML = m
+      ? `model: <b>${esc(m.name)}</b> · window <b>${fmt(m.context_length)}</b> · on GPU <b>${m.size ? Math.round((m.size_vram || 0) / m.size * 100) : 0}%</b>`
+      : `model: <b>none loaded</b>`;
+  } catch (e) { $("#pill-model").innerHTML = `model: <b>unknown</b>`; }
+}
+
+function connect() {
+  const ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/telemetry`);
+  const conn = $("#pill-conn");
+  ws.onopen = () => conn.innerHTML = `<span class="dot ok"></span>live`;
+  ws.onmessage = msg => { try { addEvent(JSON.parse(msg.data)); } catch (e) {} };
+  ws.onclose = () => { conn.innerHTML = `<span class="dot bad"></span>reconnecting`; setTimeout(connect, 2000); };
+}
+connect(); poll(); setInterval(poll, 5000);
+window.addEventListener("resize", () => { scheduleRender(); if (loaded) renderResults(loaded); });
+
+// ---------- benchmark results ----------
+let loaded = null;
+function normalize(data) {
+  const runs = (data.runs || []).map(r => ({
+    group: r.task || r.agent || "run", lane: r.lane, passed: !!r.passed, wall: r.wall_s || 0,
+    prompt: r.prompt_eval_tokens ?? r.usage?.prompt_tokens ?? 0, prefilled: r.prefilled_tokens_est,
+    reloads: r.reloads, cache: r.cache_hit_ratio, steps: r.trace || [], gc: r.gc || r.contextgc,
+  }));
+  const lanes = [...new Set(runs.map(r => r.lane))], groups = [...new Set(runs.map(r => r.group))];
+  return {runs, lanes, groups, args: data.args || {}, machine: data.machine || {}};
+}
+function renderResults(d) {
+  $("#results").hidden = false;
+  const a = d.args, w = d.machine.windows;
+  $("#res-title").textContent = `Summary per lane · ${a.model || ""}${w ? ` · small window ${w.small}, big ${w.a1}` : a.num_ctx ? ` · window ${a.num_ctx}` : ""}`;
+  const by = l => d.runs.filter(r => r.lane === l), sum = (rs, k) => rs.reduce((x, r) => x + (r[k] || 0), 0);
+  const rows = d.lanes.map(l => { const rs = by(l); return {lane: l, n: rs.length, pass: rs.filter(r => r.passed).length,
+    prompt: sum(rs, "prompt"), prefilled: sum(rs, "prefilled"), wall: sum(rs, "wall"), reloads: sum(rs, "reloads"),
+    cache: rs.filter(r => r.cache != null).length ? rs.reduce((x, r) => x + (r.cache || 0), 0) / rs.filter(r => r.cache != null).length : null,
+    fidelity: rs.reduce((x, r) => x + (r.gc?.fidelity_fallbacks || 0), 0)}; });
+  $("#res-summary").innerHTML = `<thead><tr><th>lane</th><th>passed</th><th>success</th><th>prompt tokens</th><th>prefilled</th>` +
+    `<th>wall time</th><th>reloads</th><th>avg cache hit</th><th>loop fallbacks</th></tr></thead><tbody>` +
+    rows.map(r => `<tr><td>${esc(r.lane)}</td><td>${r.pass}/${r.n}</td><td>${pct(r.pass, r.n)}</td><td>${fmt(r.prompt)}</td>` +
+      `<td>${r.prefilled ? fmt(r.prefilled) : "–"}</td><td>${Math.round(r.wall)} s</td><td>${r.reloads ?? "–"}</td>` +
+      `<td>${r.cache != null ? Math.round(r.cache * 100) + "%" : "–"}</td><td>${r.fidelity || 0}</td></tr>`).join("") + "</tbody>";
+  barChart($("#res-bars"), rows.map(r => ({label: r.lane, value: r.prompt, note: `${r.pass}/${r.n} passed`})));
+  $("#res-grid").innerHTML = `<thead><tr><th>task</th>${d.lanes.map(l => `<th class="l">${esc(l)}</th>`).join("")}</tr></thead><tbody>` +
+    d.groups.map(g => `<tr><td>${esc(g)}</td>${d.lanes.map(l => {
+      const rs = d.runs.filter(r => r.group === g && r.lane === l);
+      return `<td class="l">${rs.map(r => `<span class="status ${r.passed ? "pass" : "fail"}" title="${r.wall} s"></span>`).join(" ") || "–"}</td>`;
+    }).join("")}</tr>`).join("") + "</tbody>";
+  const hasSteps = d.runs.some(r => r.steps.length);
+  $("#race-card").hidden = !hasSteps;
+  if (hasSteps) {
+    const sel = $("#race-task"), cur = sel.value;
+    sel.innerHTML = d.groups.map(g => `<option ${g === cur ? "selected" : ""}>${esc(g)}</option>`).join("");
+    const g = sel.value || d.groups[0];
+    const series = d.lanes.map((l, i) => { const r = d.runs.find(x => x.group === g && x.lane === l);
+      return r && {name: `${l} ${r.passed ? "(PASS)" : "(fail)"}`, color: SERIES[i % 8],
+        points: r.steps.filter(s => s.prompt_eval_count).map(s => ({x: s.step, y: s.prompt_eval_count}))}; }).filter(Boolean);
+    $("#race-legend").innerHTML = series.map(s => `<span><i style="background:${s.color}"></i>${esc(s.name)}</span>`).join("");
+    lineChart($("#race-chart"), {series, xLabel: "step"});
+  }
+}
+$("#race-task").addEventListener("change", () => loaded && renderResults(loaded));
+function loadFile(f) {
+  f.text().then(t => { loaded = normalize(JSON.parse(t)); renderResults(loaded); })
+    .catch(err => { $("#results").hidden = true; alert("Not a ContextGC results file: " + err); });
+}
+$("#file").addEventListener("change", e => e.target.files[0] && loadFile(e.target.files[0]));
+async function loadNamed(name) {
+  if (!name) return;
+  try {
+    const r = await fetch(`/dashboard/results/${name.split("/").map(encodeURIComponent).join("/")}`);
+    loaded = normalize(await r.json()); renderResults(loaded);
+  } catch (err) { $("#results").hidden = true; }
+}
+$("#res-pick").addEventListener("change", e => { history.replaceState(null, "", `#results=${e.target.value}`); loadNamed(e.target.value); });
+fetch("/dashboard/results").then(r => r.json()).then(({files}) => {
+  $("#res-pick").innerHTML += files.map(f => `<option>${esc(f)}</option>`).join("");
+  $("#res-count").textContent = files.length ? `${files.length} file(s)` : "none yet: run a benchmark first";
+  const want = hashParam("results");
+  if (want) { $(`nav button[data-tab="results"]`).click(); $("#res-pick").value = want; loadNamed(want); }
+}).catch(() => {});
+const drop = $("#drop");
+drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("over"); e.dataTransfer.files[0] && loadFile(e.dataTransfer.files[0]); });
+</script>
+</body>
+</html>

@@ -95,6 +95,9 @@ def summarize_gc_report(report: dict) -> dict:
         out["stage_tokens_saved"]["ref_reinject"] = -restored
         saved_total -= restored
     out["tokens_saved_net"] = max(saved_total, 0)
+    out["compaction"] = bool(report.get("compaction"))   # epoch boundary: cache rebuilt once
+    if report.get("ollama_stats"):
+        out["ollama"] = report["ollama_stats"]          # cached prompt tokens, load time
 
     neg = report.get("numctx_negotiation")
     if neg:

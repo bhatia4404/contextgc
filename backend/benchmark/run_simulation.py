@@ -34,6 +34,7 @@ from pathlib import Path
 import httpx
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # backend/ on path
+from app.core.gc import _STAGE_PRESETS as STAGE_PRESETS  # noqa: E402
 
 RESULTS_DIR = Path(os.getenv("CONTEXTGC_RESULTS_DIR") or Path(__file__).resolve().parent / "results")
 
@@ -358,7 +359,7 @@ async def main() -> None:
     ap.add_argument("--dumps-every", type=int, default=4,
                     help="inject a tool dump every N turns (0 = never)")
     ap.add_argument("--stages", default="full",
-                    choices=["full", "none", "anchor_only", "no_semantic", "no_evict"],
+                    choices=sorted(STAGE_PRESETS),
                     help="Lane-B stage-filter preset (control experiments)")
     ap.add_argument("--rotate", type=int, default=1,
                     help="run the lane pair N times, alternating which lane goes "

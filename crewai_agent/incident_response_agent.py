@@ -19,6 +19,7 @@ REPOSITORY = Path(os.getenv("AGENT_REPOSITORY", str(ROOT.parent / "demo_reposito
 
 def build_tools():
     from crewai.tools import BaseTool
+    from llm_config import resolve_in_repo
 
     class ListFiles(BaseTool):
         name: str = "list_repository_files"
@@ -33,7 +34,7 @@ def build_tools():
         description: str = "Read a source, test, configuration, or incident log file."
 
         def _run(self, path: str) -> str:
-            target = (REPOSITORY / path).resolve()
+            target = resolve_in_repo(REPOSITORY, path)
             if REPOSITORY.resolve() not in target.parents:
                 return "ERROR: path outside repository"
             try:
@@ -74,7 +75,7 @@ def build_tools():
         description: str = "Write a source file only. Tests are read-only."
 
         def _run(self, path: str, content: str) -> str:
-            target = (REPOSITORY / path).resolve()
+            target = resolve_in_repo(REPOSITORY, path)
             if REPOSITORY.resolve() not in target.parents:
                 return "ERROR: path outside repository"
             if "test" in target.name.lower():
@@ -87,29 +88,33 @@ def build_tools():
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the OpsDesk incident-response crew")
-    parser.add_argument("--base-url", default=os.getenv("AGENT_BASE_URL", "http://localhost:11400/v1"))
-    parser.add_argument("--model", default=os.getenv("AGENT_MODEL", "llama3.2:3b"))
+    parser.add_argument("--base-url", help="Ollama or ContextGC URL (default: AGENT_BASE_URL or the proxy)")
+    parser.add_argument("--model", help="Ollama model (default: AGENT_MODEL or qwen2.5:7b)")
     args = parser.parse_args()
+    if args.base_url:
+        os.environ["AGENT_BASE_URL"] = args.base_url
+    if args.model:
+        os.environ["AGENT_MODEL"] = args.model
 
     try:
-        from crewai import Agent, Crew, LLM, Process, Task
+        from crewai import Agent, Crew, Process, Task
     except ImportError as exc:
         raise SystemExit("Install CrewAI first: pip install -r requirements.txt") from exc
+    from llm_config import hard_exit, make_llm, settings, usage, write_result
 
-    llm = LLM(model=f"ollama/{args.model}", base_url=args.base_url,
-              api_key="contextgc-incident-demo", temperature=0)
+    s = settings()
     tools = build_tools()
     investigator = Agent(
         role="Production incident investigator",
         goal="Correlate logs, source, configuration, and tests to explain the incident.",
         backstory="You are an on-call engineer. Preserve evidence and do not edit code.",
-        tools=tools[:4], llm=llm, verbose=True,
+        tools=tools[:4], llm=make_llm("investigator"), verbose=True, max_iter=15,
     )
     responder = Agent(
         role="Incident remediation engineer",
         goal="Fix the confirmed source regression, run tests, and produce a concise incident report.",
         backstory="You make minimal source-only changes and never alter tests or historical logs.",
-        tools=tools, llm=llm, verbose=True,
+        tools=tools, llm=make_llm("responder"), verbose=True, max_iter=15,
     )
     investigate = Task(
         description=(
@@ -130,24 +135,27 @@ def main() -> None:
         agent=responder,
         context=[investigate],
     )
-    result = Crew(agents=[investigator, responder], tasks=[investigate, remediate],
-                  process=Process.sequential, verbose=True).kickoff()
+    crew = Crew(agents=[investigator, responder], tasks=[investigate, remediate],
+                process=Process.sequential, verbose=True)
+    result = crew.kickoff()
     env = os.environ.copy()
     env["PYTHONPATH"] = str(REPOSITORY / "src")
     check = subprocess.run(["python", "-m", "pytest", "-q"], cwd=REPOSITORY,
                            env=env, capture_output=True, text=True)
     output = {
         "use_case": "production_incident_response",
-        "base_url": args.base_url,
-        "model": args.model,
+        "base_url": s["base_url"],
+        "model": s["model"],
+        "num_ctx": s["num_ctx"],
+        "run_id": s["run_id"],
         "passed": check.returncode == 0,
+        "usage": usage(crew, result),
         "pytest": (check.stdout + check.stderr)[-4000:],
         "crew_output": str(result)[-6000:],
     }
-    results = ROOT / "results"
-    results.mkdir(exist_ok=True)
-    (results / "incident_last_run.json").write_text(json.dumps(output, indent=2), encoding="utf-8")
+    write_result(output, "incident_last_run.json", ROOT / "results")
     print(json.dumps(output, indent=2))
+    hard_exit()
 
 
 if __name__ == "__main__":

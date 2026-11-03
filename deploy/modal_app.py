@@ -11,10 +11,11 @@ Setup (once):
     modal token new
 
 Run (from the repo root):
-    modal run deploy/modal_app.py::pull --models qwen2.5:3b,llama3.1:8b          # CPU-only, cheap
-    modal run deploy/modal_app.py::main --gpu t4 --models qwen2.5:3b --tasks fix_path_join --repeats 1  # smoke
-    modal run deploy/modal_app.py::main --gpu l4 --models llama3.1:8b --vram-override-mb 8192
-    modal run deploy/modal_app.py::sweep --gpus t4,l4 --models llama3.2:3b,llama3.1:8b --overrides 0,8192,6144
+    modal run deploy/modal_app.py::pull --models qwen2.5:7b,llama3.1:8b          # CPU-only, cheap
+    modal run deploy/modal_app.py::main --gpu t4 --models qwen2.5:7b --tasks fix_path_join --repeats 1 --small-num-ctx 8192  # smoke
+    modal run deploy/modal_app.py::main --gpu t4 --models qwen2.5:7b --small-num-ctx 8192
+    modal run deploy/modal_app.py::crewai --gpu t4 --model qwen2.5:7b --repeats 3      # CrewAI raw vs ContextGC
+    modal run deploy/modal_app.py::sweep --gpus t4,l4 --models qwen2.5:7b,llama3.1:8b --overrides 0,8192,6144
 
 Deploy-time knobs (environment of the `modal run` shell):
     CONTEXTGC_OLLAMA_VERSION   Ollama release baked into the image (default 0.40.13; empty = latest)
@@ -52,14 +53,24 @@ if SEMANTIC:
     image = image.pip_install("sentence-transformers").run_commands(
         "python -c \"from sentence_transformers import SentenceTransformer; "
         "SentenceTransformer('all-MiniLM-L6-v2')\"")
+# CrewAI A/B (crewai_agent/run_ab.py): LiteLLM routes ollama_chat to the native
+# /api/chat, so the window is enforced. Versions are the ones it was tested with.
+image = image.pip_install("crewai[litellm]==1.15.34", "litellm==1.105.3")
 image = image.env({
     "OLLAMA_MODELS": "/models",
     "OLLAMA_KEEP_ALIVE": "30m",
     "OLLAMA_NUM_PARALLEL": "1",
     "PYTHONUNBUFFERED": "1",
+    "CREWAI_DISABLE_TELEMETRY": "true",
+    "OTEL_SDK_DISABLED": "true",
+    "LITELLM_LOCAL_MODEL_COST_MAP": "True",
 }).add_local_dir(
     str(BACKEND), REMOTE_BACKEND,
     ignore=["**/__pycache__", "**/.pytest_cache", "data", "benchmark/results", "*.log", "tmp_tel.json"],
+).add_local_dir(
+    str(REPO / "crewai_agent"), "/root/crewai_agent", ignore=["**/__pycache__", "results", ".venv", ".env"],
+).add_local_dir(
+    str(REPO / "demo_repository"), "/root/demo_repository", ignore=["**/__pycache__", "**/.pytest_cache"],
 )
 
 app = modal.App("contextgc-bench", image=image)
@@ -77,7 +88,8 @@ def _stack(models: list[str], bench: list[str], env_extra: dict[str, str] | None
     return subprocess.call(cmd, cwd=REMOTE_BACKEND, env={**os.environ, **(env_extra or {})})
 
 
-def _bench(models: list[str], bench_args: list[str], tag: str, vram_override_mb: int) -> dict:
+def _bench(models: list[str], bench_args: list[str], tag: str, vram_override_mb: int,
+           script: str = "benchmark/run_tasks.py") -> dict:
     out_dir = Path("/results") / tag
     out_dir.mkdir(parents=True, exist_ok=True)
     env = {"CONTEXTGC_RESULTS_DIR": str(out_dir)}
@@ -86,7 +98,7 @@ def _bench(models: list[str], bench_args: list[str], tag: str, vram_override_mb:
     smi = subprocess.run(["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader"],
                          capture_output=True, text=True)
     (out_dir / "gpu.txt").write_text(smi.stdout or "no GPU\n", encoding="utf-8")
-    code = _stack(models, ["benchmark/run_tasks.py", *bench_args, "--tag", tag], env)
+    code = _stack(models, [script, *bench_args, "--tag", tag], env)
     models_vol.commit()   # keep any newly pulled weights
     results_vol.commit()
     files = {p.name: p.read_text(encoding="utf-8", errors="replace")
@@ -117,23 +129,27 @@ def pull_only(models: list[str]) -> list[str]:
 
 
 @app.function(gpu="T4", **FN)
-def bench_t4(models: list[str], bench_args: list[str], tag: str, vram_override_mb: int = 0) -> dict:
-    return _bench(models, bench_args, tag, vram_override_mb)
+def bench_t4(models: list[str], bench_args: list[str], tag: str, vram_override_mb: int = 0,
+             script: str = "benchmark/run_tasks.py") -> dict:
+    return _bench(models, bench_args, tag, vram_override_mb, script)
 
 
 @app.function(gpu="L4", **FN)
-def bench_l4(models: list[str], bench_args: list[str], tag: str, vram_override_mb: int = 0) -> dict:
-    return _bench(models, bench_args, tag, vram_override_mb)
+def bench_l4(models: list[str], bench_args: list[str], tag: str, vram_override_mb: int = 0,
+             script: str = "benchmark/run_tasks.py") -> dict:
+    return _bench(models, bench_args, tag, vram_override_mb, script)
 
 
 @app.function(gpu="A10G", **FN)
-def bench_a10g(models: list[str], bench_args: list[str], tag: str, vram_override_mb: int = 0) -> dict:
-    return _bench(models, bench_args, tag, vram_override_mb)
+def bench_a10g(models: list[str], bench_args: list[str], tag: str, vram_override_mb: int = 0,
+               script: str = "benchmark/run_tasks.py") -> dict:
+    return _bench(models, bench_args, tag, vram_override_mb, script)
 
 
 @app.function(cpu=8, memory=16384, **FN)
-def bench_cpu(models: list[str], bench_args: list[str], tag: str, vram_override_mb: int = 0) -> dict:
-    return _bench(models, bench_args, tag, vram_override_mb)
+def bench_cpu(models: list[str], bench_args: list[str], tag: str, vram_override_mb: int = 0,
+              script: str = "benchmark/run_tasks.py") -> dict:
+    return _bench(models, bench_args, tag, vram_override_mb, script)
 
 
 BENCH = {"t4": bench_t4, "l4": bench_l4, "a10g": bench_a10g, "cpu": bench_cpu}
@@ -176,6 +192,19 @@ def main(gpu: str = "t4", models: str = "qwen2.5:3b", tasks: str = "", lanes: st
         f"_v{vram_override_mb}" if vram_override_mb else "")
     args = _bench_args(tasks, lanes, repeats, max_steps, small_num_ctx, a1_num_ctx, pad_tokens)
     _save(BENCH[gpu].remote(model_list, args, tag, vram_override_mb))
+
+
+@app.local_entrypoint()
+def crewai(gpu: str = "t4", model: str = "qwen2.5:7b", agents: str = "incident,code",
+           lanes: str = "raw,contextgc", repeats: int = 3, num_ctx: int = 8192,
+           log_lines: int = 2000, timeout: int = 900, tag: str = ""):
+    """CrewAI A/B: the same crew against raw Ollama and through ContextGC, same window."""
+    if gpu not in BENCH:
+        raise SystemExit(f"--gpu must be one of {sorted(BENCH)}")
+    tag = tag or f"{time.strftime('%Y%m%d_%H%M%S')}_crewai_{gpu}_{model.replace(':', '-')}"
+    args = ["--agents", agents, "--lanes", lanes, "--repeats", str(repeats), "--num-ctx", str(num_ctx),
+            "--log-lines", str(log_lines), "--timeout", str(timeout)]
+    _save(BENCH[gpu].remote([model], args, tag, 0, "../crewai_agent/run_ab.py"))
 
 
 @app.local_entrypoint()

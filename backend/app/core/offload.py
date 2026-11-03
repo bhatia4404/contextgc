@@ -44,22 +44,30 @@ _KEY_RESULT_RE = re.compile(
 
 
 class _RefCounter:
+    """Ref ids count from 1 within each run, so the same conversation always
+    yields the same pointer text (a process-wide counter made every run's
+    prompt differ, and greedy decoding then took a different path)."""
+
     def __init__(self):
         self._lock = threading.Lock()
-        self._n = 0
+        self._n: dict[str, int] = {}
 
-    def next(self) -> int:
+    def next(self, run_id: str) -> int:
         with self._lock:
-            self._n += 1
-            return self._n
+            self._n[run_id] = self._n.get(run_id, 0) + 1
+            return self._n[run_id]
 
-    def remember(self, ref_id: int, filepath: str) -> None:
+    def resume(self, run_id: str, ref_id: int) -> None:
+        with self._lock:
+            self._n[run_id] = max(self._n.get(run_id, 0), ref_id)
+
+    def remember(self, run_id: str, ref_id: int, filepath: str) -> None:
         """ref -> scratchpad path map: enables on-demand re-injection (path 2)."""
         with self._lock:
-            _REF_MAP[ref_id] = filepath
+            _REF_MAP[(run_id, ref_id)] = filepath
 
 
-_REF_MAP: dict[int, str] = {}          # ref_id -> scratchpad file (path 2 readback)
+_REF_MAP: dict[tuple[str, int], str] = {}   # (run_id, ref_id) -> scratchpad file
 _refs = _RefCounter()
 
 # Content-addressed refs (Iteration-12 fix, accurate-contract backbone):
@@ -99,9 +107,8 @@ def _restore_registry_from_disk() -> None:
             _CONTENT_TO_REF.setdefault((run_id, _content_hash(body)), ref_id)
             if not content.strip():
                 continue
-            _REF_MAP.setdefault(ref_id, str(f))
-            if ref_id > _refs._n:
-                _refs._n = ref_id      # resume the counter, never re-issue old ids
+            _REF_MAP.setdefault((run_id, ref_id), str(f))
+            _refs.resume(run_id, ref_id)   # never re-issue an old id within its run
         except Exception:
             continue  # damaged file: skip; other refs stay restorable
 
@@ -136,7 +143,7 @@ def _run_to_scratchpad(ref_id: int, tool_label: str, text: str, run_id: str) -> 
     settings = config.get_settings()
     path = Path(settings.scratchpad_dir)
     path.mkdir(parents=True, exist_ok=True)
-    fname = f"ref_{ref_id}_{int(time.time())}.txt"
+    fname = f"ref_{ref_id}_{_content_hash(run_id)}.txt"
     header = (
         f"# ContextGC tool-offload original\n# ref: {ref_id} | tool: {tool_label}"
         f" | run: {run_id} | ts: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
@@ -190,27 +197,29 @@ def run_offload(payload: dict, report: dict, run_id: str) -> bool:
         chash = (run_id, _content_hash(text))
         tool_label = msg.get("name") or (msg.get("tool_call_id") and f"tool_call {msg['tool_call_id']}") or "tool"
         existing = _CONTENT_TO_REF.get(chash)
-        filepath = _REF_MAP.get(existing) if existing is not None else None
+        filepath = _REF_MAP.get((run_id, existing)) if existing is not None else None
         if existing is None or not filepath or not Path(filepath).exists():
             # fresh (or self-heal: registry entry whose file vanished/dropped on reset)
-            ref_id = existing if (existing is not None and not filepath) else _refs.next()
+            ref_id = existing if (existing is not None and not filepath) else _refs.next(run_id)
             filepath = _run_to_scratchpad(ref_id, tool_label, text, run_id)
             _CONTENT_TO_REF[chash] = ref_id
-            _refs.remember(ref_id, filepath)
+            _refs.remember(run_id, ref_id, filepath)
         else:
             ref_id = existing          # SAME content, SAME ref
         summary = _extract_summary(text)
         lines = text.count("\n") + 1
 
+        # No file path in the prompt: the model cannot open it, and it would
+        # make the pointer text differ between otherwise identical runs.
         pointer = (
             f"[Tool Output Ref #{ref_id} — {tool_label} | {lines:,} lines"
-            f" (~{est_before:,} tokens) saved to scratchpad: {filepath}\n"
+            f" (~{est_before:,} tokens) saved by ContextGC\n"
             f"Key result: {summary}\n"
             f'Content trimmed to save context. Retrieve via "read_ref {ref_id}" if the full output is needed.]'
         )
         # interchangeable content only; envelope fields stay untouched
         msg["content"] = pointer
-        _refs.remember(ref_id, filepath)
+        _refs.remember(run_id, ref_id, filepath)
         offloads.append({
             "index": i,
             "ref": ref_id,
@@ -255,7 +264,7 @@ def scan_for_ref_mentions(text: str) -> list[int]:
     return refs
 
 
-def maybe_reinject(payload: dict, report: dict) -> bool:
+def maybe_reinject(payload: dict, report: dict, run_id: str = "default") -> bool:
     """Restore FULL originals for refs the current turn explicitly mentions.
 
     Blast radius: only messages that currently ARE pointers (only refs that
@@ -284,7 +293,7 @@ def maybe_reinject(payload: dict, report: dict) -> bool:
     restored: list[dict] = []
     misses: list[int] = []
     for ref_id in sorted(mentioned):
-        filepath = _REF_MAP.get(ref_id)
+        filepath = _REF_MAP.get((run_id, ref_id))
         pointer_idx = next((i for i, m in enumerate(messages)
                             if isinstance(m, dict) and _is_pointer(str(m.get("content") or ""))
                             and f"Ref #{ref_id}" in m["content"]), None)

@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "benchmark"))
 
 from run_simulation import cache_stats  # noqa: E402
-from run_tasks import parse_calls  # noqa: E402
+from run_tasks import parse_calls, parse_lanes  # noqa: E402
 
 
 def test_cache_stats_uses_prefill_time_not_reported_count():
@@ -45,3 +45,19 @@ def test_cache_stats_prefers_ollama_cached_count():
     stats = cache_stats(rows)
     assert stats["cache_source"] == "ollama"
     assert stats["prefilled_tokens_est"] == 120
+
+
+def test_ablation_lanes_map_to_stage_presets():
+    from types import SimpleNamespace
+    args = SimpleNamespace(ollama_url="http://o", proxy_url="http://p")
+    lanes = parse_lanes("a1,b,b-no_semantic", {"a1": 32768, "small": 8192}, args)
+    assert lanes["a1"] == ("A1", "http://o", 32768, False, None)
+    assert lanes["b"] == ("B", "http://p", 8192, True, None)
+    assert lanes["b-no_semantic"] == ("B:no_semantic", "http://p", 8192, True, "no_semantic")
+
+
+def test_no_stage_presets_switch_off_exactly_one_stage():
+    from app.core.gc import STAGES, _STAGE_PRESETS
+    for stage in STAGES:
+        if stage != "numctx":
+            assert _STAGE_PRESETS[f"no_{stage}"] == set(STAGES) - {stage}

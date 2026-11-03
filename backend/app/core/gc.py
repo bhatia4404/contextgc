@@ -32,17 +32,19 @@ from app.core import run_state
 # maps to the set of stages allowed to run; None = default (no filter). This
 # is how the harness isolates e.g. "proxy overhead only" or "anchor prepend
 # only" — measured, not assumed.
+STAGES = ("fidelity", "dedup", "offload", "reinject", "semantic", "state", "evict", "numctx")
 _STAGE_PRESETS: dict[str, Optional[set[str]]] = {
     "full": None,
     "none": set(),                                    # proxy overhead only
     "anchor_only": {"state", "numctx"},               # prepend cost isolated
-    "no_semantic": {"dedup", "offload", "reinject", "state", "evict", "numctx"},
-    "no_evict": {"dedup", "offload", "reinject", "semantic", "state", "numctx"},
+    # Phase 3.6 keep/kill ablation: everything except one stage. Derived from
+    # STAGES so switching one stage off never silently switches off another.
+    **{f"no_{stage}": set(STAGES) - {stage} for stage in STAGES if stage != "numctx"},
 }
 
 
 def parse_stages_header(value: str | None) -> Optional[set[str]]:
-    """Header value: 'full' | 'none' | 'anchor_only' | 'no_semantic' | 'no_evict'."""
+    """Header value: 'full', 'none', 'anchor_only' or 'no_<stage>' (see STAGES)."""
     if not value:
         return None
     value = value.strip().lower()
@@ -139,7 +141,7 @@ def process_payload(path: str, body: bytes, run_id: str = "default",
     # --- Stage 1.5b: on-demand re-injection (accuracy contract; MUST precede
     #     num_ctx because restored dumps grow the estimate back) ---
     if not fidelity_raw and not retry and settings.offload_enabled and stage_on("reinject") and not report.get("skipped"):
-        if offload.maybe_reinject(payload, report):
+        if offload.maybe_reinject(payload, report, run_id):
             modified = True
         stages_run.append("ref_reinject")
 

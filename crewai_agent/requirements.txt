@@ -1,2 +1,2 @@
-crewai>=1.15
+crewai[litellm]>=1.15
 python-dotenv>=1.0

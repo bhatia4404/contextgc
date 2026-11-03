@@ -10,6 +10,9 @@ venv/
 backend/data/
 data/
 *.db
+# ...but the demo repository's incident logs are part of the demo
+!demo_repository/data/
+!demo_repository/data/**
 
 # Env
 .env
