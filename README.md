@@ -13,7 +13,7 @@
 ![Tests](https://img.shields.io/badge/tests-117%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-—-lightgrey)
 
-> ### 📊 [Open the live dashboard →](https://shivambhatia4404--contextgc-showcase-web.us-east.modal.run)
+> ### 📊 [Open the live dashboard →](https://shivambhatia4404--contextgc-showcase-web.us-east.modal.run) · 🎬 [Watch the 3-minute pitch →](https://www.youtube.com/watch?v=gwRTK6PQHUY)
 >
 > Every measured GPU run, the top results, and which parts of ContextGC matter. No install needed.
 > On the **[Run it live](https://shivambhatia4404--contextgc-showcase-web.us-east.modal.run/live)** page you

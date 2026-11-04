@@ -211,6 +211,27 @@ def crewai(gpu: str = "t4", model: str = "qwen2.5:7b", agents: str = "incident,c
     _save(BENCH[gpu].remote([model], args, tag, 0, "../crewai_agent/run_ab.py"))
 
 
+TASKS = ["fix_failing_sum", "repair_json_reader", "fix_path_join", "preserve_false_values",
+         "fix_retry_counter", "implement_stable_sort", "fix_cache_key", "fix_csv_parser"]
+
+
+@app.local_entrypoint()
+def campaign(gpu: str = "t4", model: str = "qwen2.5:7b", lanes: str = "a1,a2,b", repeats: int = 3,
+             tasks: str = ",".join(TASKS), small_num_ctx: str = "8192", a1_num_ctx: str = "32768", tag: str = ""):
+    """One container per task, in parallel, inside this (temporary) `modal run` app: runs the
+    current local code without deploying. Lives as long as this process; results land in
+    backend/benchmark/results/modal/<tag>/<task>/."""
+    tag = tag or f"{time.strftime('%Y%m%d_%H%M')}_{gpu}_{model.replace(':', '-')}"
+    calls = [(t, BENCH[gpu].spawn([model], _bench_args(t, lanes, repeats, 12, small_num_ctx, a1_num_ctx, "auto"),
+                                  f"{tag}/{t}", 0)) for t in _split(tasks)]
+    print(f"[modal] {len(calls)} containers launched for {tag}")
+    for task, call in calls:
+        try:
+            _save(call.get())
+        except Exception as exc:
+            print(f"[modal] {task} failed: {type(exc).__name__}: {exc}")
+
+
 @app.local_entrypoint()
 def sweep(gpus: str = "t4,l4", models: str = "llama3.2:3b,llama3.1:8b", overrides: str = "0,8192,6144",
           tasks: str = "", lanes: str = "a1,a2,b", repeats: int = 3, max_steps: int = 12):
