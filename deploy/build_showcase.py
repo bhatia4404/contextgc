@@ -102,11 +102,31 @@ def crewai(data: dict) -> dict:
             "summary": data["summary"]}
 
 
+def hosted_api(data: dict, provider: str = "Meta Model API") -> dict:
+    """run_tasks_api.py output -> per-run averages per lane, plus the per-task grid."""
+    lanes = {}
+    for lane, s in data["summary"].items():
+        n = s["runs"] or 1
+        lanes[lane] = {"runs": s["runs"], "passed": s["passed"],
+                       "prompt_tokens_per_run": round(s["prompt_tokens"] / n),
+                       "completion_tokens_per_run": round(s["completion_tokens"] / n),
+                       "cost_per_run": round(s["cost_usd"] / n, 5), "time_per_run": round(s["total_wall_s"] / n, 1),
+                       "cost_total": s["cost_usd"]}
+    tasks: dict = {}
+    for r in data["runs"]:
+        t = tasks.setdefault(r["task"], {}).setdefault(r["lane"], {"passed": 0, "runs": 0})
+        t["runs"] += 1
+        t["passed"] += int(r["passed"])
+    return {"provider": provider, "model": data["args"]["model"], "repeats": data["args"]["repeats"],
+            "budget": data["args"]["budget"], "lanes": lanes, "per_task": tasks}
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--main", action="append", type=Path, default=[])
     ap.add_argument("--ablation", type=Path)
     ap.add_argument("--crewai", type=Path)
+    ap.add_argument("--meta", type=Path, help="run_tasks_api.py result against Meta's Model API")
     ap.add_argument("--out", type=Path, default=DATA / "showcase.json")
     a = ap.parse_args()
     load = lambda p: json.loads(p.read_text(encoding="utf-8"))  # noqa: E731
@@ -115,7 +135,8 @@ def main() -> None:
             "campaigns": [campaign(d) for d in mains],
             "highlights": highlights(mains),
             "ablation": ablation(load(a.ablation)) if a.ablation else None,
-            "crewai": crewai(load(a.crewai)) if a.crewai else None}
+            "crewai": crewai(load(a.crewai)) if a.crewai else None,
+            "hosted_api": hosted_api(load(a.meta)) if a.meta else None}
     a.out.parent.mkdir(parents=True, exist_ok=True)
     a.out.write_text(json.dumps(show, indent=1), encoding="utf-8")
     print(f"wrote {a.out}: {len(show['campaigns'])} campaigns, "

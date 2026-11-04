@@ -61,7 +61,9 @@ export default function Live() {
       <p className="lead">This starts a real agent on a cloud GPU (NVIDIA T4, model qwen2.5:7b). It works on one coding
         task, once through raw Ollama and once through ContextGC, with the same 8k context window. You can watch every step.</p>
       <p className="callout">The first minute or two is the GPU starting and the model loading. Each lane then takes about
-        1–4 minutes. Only one run happens at a time; if someone else's run is going, you'll watch that one.</p>
+        1–4 minutes. Only one run happens at a time; if someone else's run is going, you'll watch that one.
+        Live runs use qwen2.5:7b on our Modal GPU only; the Meta Model API results on the Results page were measured
+        offline and cannot be started here.</p>
 
       <div className="card">
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "end" }}>

@@ -36,6 +36,17 @@ export interface CrewStats {
   runs: number; passed: number; prompt_tokens: number; gc_saved_pct_avg: number | null; timeouts: number;
 }
 
+export interface HostedLane {
+  runs: number; passed: number; prompt_tokens_per_run: number; completion_tokens_per_run: number;
+  cost_per_run: number; time_per_run: number; cost_total: number;
+}
+
+export interface HostedApi {
+  provider: string; model: string; repeats: number; budget: number;
+  lanes: { raw: HostedLane; contextgc: HostedLane };
+  per_task: Record<string, Partial<Record<"raw" | "contextgc", { passed: number; runs: number }>>>;
+}
+
 export interface Showcase {
   generated: string;
   repo: string;
@@ -43,6 +54,7 @@ export interface Showcase {
   highlights: Highlight[];
   ablation: { id: string; model: string; gpu: string; repeats: number; summary: Record<string, LaneStats> } | null;
   crewai: { id: string; model: string; gpu: string; summary: Record<string, CrewStats> } | null;
+  hosted_api?: HostedApi | null;
 }
 
 export type RunStatus = "queued" | "starting" | "running" | "done" | "error";

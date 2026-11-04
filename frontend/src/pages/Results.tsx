@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { GroupedBars, HBars, LineChart, Swatch } from "../components/charts";
 import { LANES, LANE_ORDER, TASKS, fmt, pct } from "../format";
-import type { Campaign, Highlight, LaneKey, LaneStats, Showcase } from "../types";
+import type { Campaign, HostedApi, Highlight, LaneKey, LaneStats, Showcase } from "../types";
 
 const passText = (s?: LaneStats) => (s ? `${s.passed}/${s.runs}` : "–");
 const lanesOf = (x: { summary: Partial<Record<LaneKey, LaneStats>> }) => LANE_ORDER.filter(k => x.summary[k]);
@@ -49,6 +49,8 @@ export default function Results() {
         <p className="sub">Each variant switches off exactly one stage of the pipeline and reruns every task. A big drop
           means that stage is doing real work.</p>
         <Ablation data={data} />
+
+        {data.hosted_api && <HostedApiSection h={data.hosted_api} />}
 
         <h2>CrewAI, a real agent framework</h2>
         <p className="sub">Two CrewAI crews (incident response, code maintenance) on a demo repository with a 2,000-line
@@ -230,4 +232,44 @@ function Crew({ data }: { data: Showcase }) {
         little to remove (0–3%). This test does not stress the context window; the coding benchmark above does.</p>
     </div>
   );
+}
+
+function HostedApiSection({ h }: { h: HostedApi }) {
+  const { raw, contextgc: gc } = h.lanes;
+  const less = (a: number, b: number) => Math.round((1 - b / a) * 100);
+  const rows: { label: string; fmtv: (v: number) => string; key: "prompt_tokens_per_run" | "cost_per_run" | "time_per_run" }[] = [
+    { label: "Prompt tokens per run", fmtv: fmt, key: "prompt_tokens_per_run" },
+    { label: "Cost per run", fmtv: v => "$" + v.toFixed(4), key: "cost_per_run" },
+    { label: "Time per run", fmtv: v => v.toFixed(1) + " s", key: "time_per_run" },
+  ];
+  return <>
+    <h2>Hosted model: {h.provider}</h2>
+    <p className="sub">The same 8 tasks on Meta's <code>{h.model}</code>, {h.repeats} runs each: straight to the API with the
+      whole history, and through ContextGC with an {Math.round(h.budget / 1024)}k-token prompt budget. This model has a 1-million-token
+      window, so it never loses the task and ContextGC cannot improve success here. What it changes is how much is sent
+      and billed.</p>
+    <div className="tiles">
+      <div className="tile"><div className="label">Same success</div><div className="value">{gc.passed}/{gc.runs}</div>
+        <div className="note">raw API {raw.passed}/{raw.runs}</div></div>
+      <div className="tile"><div className="label">Fewer prompt tokens</div><div className="value">−{less(raw.prompt_tokens_per_run, gc.prompt_tokens_per_run)}%</div>
+        <div className="note">{fmt(gc.prompt_tokens_per_run)} vs {fmt(raw.prompt_tokens_per_run)} per run</div></div>
+      <div className="tile"><div className="label">Lower cost</div><div className="value">−{less(raw.cost_per_run, gc.cost_per_run)}%</div>
+        <div className="note">${gc.cost_per_run.toFixed(4)} vs ${raw.cost_per_run.toFixed(4)} per run</div></div>
+      <div className="tile"><div className="label">Faster</div><div className="value">−{less(raw.time_per_run, gc.time_per_run)}%</div>
+        <div className="note">{gc.time_per_run.toFixed(1)} s vs {raw.time_per_run.toFixed(1)} s per run</div></div>
+    </div>
+    <div className="card">
+      {rows.map(r => <div key={r.key} style={{ marginBottom: 6 }}>
+        <h3 style={{ marginBottom: 0 }}>{r.label}</h3>
+        <HBars label={r.label} labelWidth={170} max={Math.max(raw[r.key], gc[r.key]) * 1.15} rows={[
+          { label: "Raw API", value: raw[r.key], text: r.fmtv(raw[r.key]), color: "var(--s1)" },
+          { label: "Through ContextGC", value: gc[r.key], text: r.fmtv(gc[r.key]), color: "var(--s3)" },
+        ]} />
+      </div>)}
+      <p className="muted">The cost saving is smaller than the token saving: Meta bills repeated prompt prefixes at a much
+        lower cached rate, and ContextGC's rewritten history loses part of that discount. Measured offline with our own API
+        key (the whole comparison cost ${(raw.cost_total + gc.cost_total).toFixed(2)}); this model is not available on the
+        Run it live page.</p>
+    </div>
+  </>;
 }

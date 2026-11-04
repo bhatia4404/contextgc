@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-03",
+ "generated": "2026-11-04",
  "repo": "https://github.com/bhatia4404/contextgc",
  "campaigns": [
   {
@@ -2115,6 +2115,114 @@
     "timeouts": 0,
     "prompt_tokens": 15360,
     "gc_saved_pct_avg": null
+   }
+  }
+ },
+ "hosted_api": {
+  "provider": "Meta Model API",
+  "model": "muse-spark-1.3-contributor",
+  "repeats": 3,
+  "budget": 8192,
+  "lanes": {
+   "raw": {
+    "runs": 24,
+    "passed": 24,
+    "prompt_tokens_per_run": 82249,
+    "completion_tokens_per_run": 1081,
+    "cost_per_run": 0.00172,
+    "time_per_run": 27.9,
+    "cost_total": 0.0412
+   },
+   "contextgc": {
+    "runs": 24,
+    "passed": 24,
+    "prompt_tokens_per_run": 33701,
+    "completion_tokens_per_run": 906,
+    "cost_per_run": 0.00088,
+    "time_per_run": 25.2,
+    "cost_total": 0.0211
+   }
+  },
+  "per_task": {
+   "fix_failing_sum": {
+    "raw": {
+     "passed": 3,
+     "runs": 3
+    },
+    "contextgc": {
+     "passed": 3,
+     "runs": 3
+    }
+   },
+   "repair_json_reader": {
+    "raw": {
+     "passed": 3,
+     "runs": 3
+    },
+    "contextgc": {
+     "passed": 3,
+     "runs": 3
+    }
+   },
+   "fix_path_join": {
+    "raw": {
+     "passed": 3,
+     "runs": 3
+    },
+    "contextgc": {
+     "passed": 3,
+     "runs": 3
+    }
+   },
+   "preserve_false_values": {
+    "raw": {
+     "passed": 3,
+     "runs": 3
+    },
+    "contextgc": {
+     "passed": 3,
+     "runs": 3
+    }
+   },
+   "fix_retry_counter": {
+    "raw": {
+     "passed": 3,
+     "runs": 3
+    },
+    "contextgc": {
+     "passed": 3,
+     "runs": 3
+    }
+   },
+   "implement_stable_sort": {
+    "raw": {
+     "passed": 3,
+     "runs": 3
+    },
+    "contextgc": {
+     "passed": 3,
+     "runs": 3
+    }
+   },
+   "fix_cache_key": {
+    "raw": {
+     "passed": 3,
+     "runs": 3
+    },
+    "contextgc": {
+     "passed": 3,
+     "runs": 3
+    }
+   },
+   "fix_csv_parser": {
+    "raw": {
+     "passed": 3,
+     "runs": 3
+    },
+    "contextgc": {
+     "passed": 3,
+     "runs": 3
+    }
    }
   }
  }
