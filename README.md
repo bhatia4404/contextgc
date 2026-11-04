@@ -10,8 +10,17 @@
 
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![FastAPI](https://img.shields.io/badge/FastAPI-proxy-009688)
-![Tests](https://img.shields.io/badge/tests-113%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-117%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-—-lightgrey)
+
+> ### 📊 [Open the live dashboard →](https://shivambhatia4404--contextgc-showcase-web.us-east.modal.run)
+>
+> Every measured GPU run, the top results, and which parts of ContextGC matter. No install needed.
+> On the **[Run it live](https://shivambhatia4404--contextgc-showcase-web.us-east.modal.run/live)** page you
+> can start a real agent on a cloud GPU and watch raw Ollama and ContextGC side by side, step by step.
+>
+> **Headline:** qwen2.5:7b with an 8k window solved **67%** of runs through ContextGC vs **42%** raw, using
+> about a third of the tokens of a 4× larger window. [Full results, including where it does not help ↓](#results-measured-on-gpus)
 
 ---
 
@@ -96,6 +105,25 @@ tools return at most the last 16k characters, and CrewAI's deferral keeps prompt
 that. This test therefore says little about ContextGC either way. What it does show is that modern
 frameworks are starting to manage tool output themselves, so ContextGC's value is largest for agents
 and frameworks that do not, such as the plain tool-calling agent in the benchmark above.
+
+**Hosted API: Meta Model API** (`muse-spark-1.3-contributor`, same 8 tasks, 3 runs each, two lanes:
+raw API vs through ContextGC with an 8k prompt budget). A model with a 1-million-token window never loses
+the task, so ContextGC's main job (fitting a small local window) does not apply here, and we did not see
+a quality gain. What it does on a hosted API is cut what you send and pay for:
+
+| Lane (Meta API) | Passed | Prompt tokens / run | Cost / run | Time / run |
+|---|---|---|---|---|
+| Raw API, full history | 17/17 | 83.5k | $0.0020 | 27.3 s |
+| **Through ContextGC** (8k budget) | 16/16 | **33.7k (−60%)** | **$0.0010 (−48%)** | 25.0 s |
+
+*Interim: 33 of 48 runs (2026-11-04); the full run is in progress and these numbers will be updated.*
+
+The cost saving is smaller than the token saving because Meta bills repeated prompt prefixes at a much
+lower cached rate, and ContextGC's rewritten history loses part of that discount. Run it yourself with
+`CONTEXTGC_SINK=https://api.meta.ai` on the proxy and
+[`backend/benchmark/run_tasks_api.py`](backend/benchmark/run_tasks_api.py) (it prices every response
+and stops at `--max-cost`). Note: `-contributor` models are cheaper because Meta may train on what you
+send.
 
 **Caveats.** The tasks are ours and small; results on other workloads may differ. Even at
 temperature 0, GPU runs are not perfectly repeatable, so treat gaps of 1–2 runs as noise.
@@ -456,7 +484,11 @@ Helper scripts (run from `backend/`, they read the local store in `data/contextg
 - **Window size:** chosen automatically from free GPU memory; on a CPU it is
   `CONTEXTGC_NUMCTX_DEFAULT` (8192). Send `num_ctx` on the first request to choose it yourself.
 - **Another backend:** set `CONTEXTGC_SINK` to any OpenAI-compatible base URL to put
-  ContextGC in front of something other than Ollama.
+  ContextGC in front of something other than Ollama, e.g. Meta's Model API:
+  `CONTEXTGC_SINK=https://api.meta.ai`. Clients then call the proxy's `/v1/chat/completions`
+  with their usual `Authorization: Bearer <key>` header (passed through unchanged). There is no
+  local window to probe, so `num_ctx` in the request (or `CONTEXTGC_NUMCTX_DEFAULT`) is the prompt
+  budget ContextGC keeps to; it is removed before the request reaches the API.
 
 ### FAQ
 
@@ -647,7 +679,7 @@ cd backend
 python -m pytest tests -q
 ```
 
-113 passing. The acceptance suite runs against a **mock sink**, so no Ollama or GPU is
+117 passing. The acceptance suite runs against a **mock sink**, so no Ollama or GPU is
 required. It covers: byte-faithful passthrough (OpenAI + native + SSE streaming), the
 store, the classifier, dedup, offload & re-injection, anchored state, num_ctx
 pinning, and the telemetry bus.
@@ -667,7 +699,7 @@ Implemented foundation — **proxy, correctness safeguards, and v3 cache-safety 
   state pin, referenced-later turns and standing facts) · deterministic fidelity
   fallback (loop/confusion rule engine → recovery turn replays the raw view)
 
-**113 tests passing** (mock sink, no Ollama required). Runtime capacity probing,
+**117 tests passing** (mock sink, no Ollama required). Runtime capacity probing,
 incremental prefix views, and compaction epochs are implemented; hardware benchmark
 execution remains environment-dependent.
 
@@ -691,8 +723,29 @@ eviction (pressure-triggered) → incremental combine/compaction → fixed num_c
   per-run prompt-size chart with compaction markers, prompt diff viewer, benchmark
   results viewer with per-task race chart
 
-Benchmark numbers are reported only when measured — this README deliberately contains
-no performance claims.
+**Next: let the agent read what was moved out of its context.** Today recall is passive:
+
+- An offloaded tool dump leaves a pointer with one key line. The full text comes back only if the
+  agent happens to write `read_ref N` in its reply; ContextGC scans for that, and then re-injects the
+  *whole* dump, which can refill the window.
+- Evicted turns cannot be recalled by the agent at all. They stay in the append-only store, and only
+  the fidelity fallback (when a loop is detected) ever sends the raw history again.
+
+So the agent has to know, unprompted, that something it needs was moved out. Planned:
+
+- 🔲 **A real recall tool.** ContextGC adds a `read_ref` / `search_history` tool to the request's tool
+  list and answers it itself, so the agent can ask for moved-out content through its normal tool calls,
+  with no special wording needed and no change to the agent's code.
+- 🔲 **Targeted reads instead of full re-injection.** Return only the part that is needed: matching
+  lines (grep), a line range, the failing tests from a pytest dump, or the closest chunks by meaning,
+  so a recall never refills the window.
+- 🔲 **Recall for evicted turns,** through the same tool, from the store.
+- 🔲 **Smarter filtering of stale history.** On qwen2.5:14b and llama3.1:8b, plainly dropping old
+  history beat ContextGC's curated history ([Results](#results-measured-on-gpus)): stale material that
+  survives compaction still distracts those models. Scoring old turns by relevance to the current task,
+  not only by age and length, is the fix to try first.
+
+Benchmark numbers are reported only when measured: see [Results](#results-measured-on-gpus).
 
 ### Context-window configuration
 
