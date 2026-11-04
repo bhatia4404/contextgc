@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import WatchPitch from "../components/WatchPitch";
 import { GroupedBars, HBars, LineChart, Swatch } from "../components/charts";
 import { LANES, LANE_ORDER, TASKS, fmt, pct } from "../format";
 import type { Campaign, HostedApi, Highlight, LaneKey, LaneStats, Showcase } from "../types";
@@ -18,6 +19,7 @@ export default function Results() {
       <p className="lead">ContextGC is a proxy between an AI agent and Ollama. Before every model call it cleans the
         agent's history: duplicates go, huge tool outputs move to disk behind a pointer, and old low-value turns are
         evicted only under pressure. The agent needs no code changes, only a new URL.</p>
+      <WatchPitch big />
       {error && <p className="callout">Could not load results: {error}</p>}
       {!data && !error && <p className="muted">Loading results…</p>}
       {data && <Tiles data={data} />}

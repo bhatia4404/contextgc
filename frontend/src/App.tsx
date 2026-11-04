@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Live from "./pages/Live";
 import Results from "./pages/Results";
+import WatchPitch from "./components/WatchPitch";
 
 const REPO = "https://github.com/bhatia4404/contextgc";
 const PAGES = { "/": { title: "ContextGC Results", label: "Results" }, "/live": { title: "ContextGC Live Run", label: "Run it live" } };
@@ -30,6 +31,7 @@ export default function App() {
         {(Object.keys(PAGES) as Path[]).map(p =>
           <a key={p} href={p} onClick={go(p)} aria-current={path === p ? "page" : undefined}>{PAGES[p].label}</a>)}
         <a href={REPO}>Code</a>
+        <WatchPitch />
       </nav>
     </header>
     {path === "/live" ? <Live /> : <Results />}
