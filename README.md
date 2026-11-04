@@ -113,10 +113,10 @@ a quality gain. What it does on a hosted API is cut what you send and pay for:
 
 | Lane (Meta API) | Passed | Prompt tokens / run | Cost / run | Time / run |
 |---|---|---|---|---|
-| Raw API, full history | 17/17 | 83.5k | $0.0020 | 27.3 s |
-| **Through ContextGC** (8k budget) | 16/16 | **33.7k (−60%)** | **$0.0010 (−48%)** | 25.0 s |
+| Raw API, full history | 24/24 | 82.2k | $0.0017 | 27.9 s |
+| **Through ContextGC** (8k budget) | 24/24 | **33.7k (−59%)** | **$0.0009 (−49%)** | 25.2 s |
 
-*Interim: 33 of 48 runs (2026-11-04); the full run is in progress and these numbers will be updated.*
+*All 48 runs (8 tasks × 3 × 2 lanes), 2026-11-04; the whole comparison cost $0.06.*
 
 The cost saving is smaller than the token saving because Meta bills repeated prompt prefixes at a much
 lower cached rate, and ContextGC's rewritten history loses part of that discount. Run it yourself with
