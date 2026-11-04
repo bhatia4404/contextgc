@@ -130,6 +130,12 @@ temperature 0, GPU runs are not perfectly repeatable, so treat gaps of 1–2 run
 ContextGC loses some tasks too: on `implement_stable_sort` qwen2.5:7b passes 3/3 with the raw 8k
 window and 0/3 through ContextGC, where it loops on re-running pytest.
 
+**Code version.** The GPU results and the live demo use ContextGC as of 3 November (commit
+`dc8030d`). A later change to the eviction logic (keeping every tool call next to its result, which
+Meta's API requires) changed how the model behaves on some tasks, so runs with the latest code can
+differ from the published numbers: in our rerun of qwen2.5:7b, ContextGC passed 10/24 instead of 16/24.
+The Meta API results were measured with the latest code.
+
 **Reproduce.** `modal deploy deploy/modal_app.py`, then
 `python deploy/launch.py main --gpu t4 --model qwen2.5:7b --repeats 3 --campaign <name>`
 (one container per task; survives a closed laptop). Fetch with
