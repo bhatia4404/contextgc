@@ -191,3 +191,46 @@ def test_pipeline_stage_order():
     assert "importance_eviction" in stages
     assert stages.index("importance_eviction") > stages.index("anchored_state")
     assert stages.index("importance_eviction") < stages.index("numctx_negotiation")
+
+
+# --- tool pairs: a call never leaves without its results, or vice versa ---
+
+
+def _orphans(msgs):
+    called = {c["id"] for m in msgs for c in (m.get("tool_calls") or [])}
+    answered = {m["tool_call_id"] for m in msgs if m.get("tool_call_id")}
+    return ([m["tool_call_id"] for m in msgs if m.get("tool_call_id") and m["tool_call_id"] not in called],
+            sorted(called - answered))
+
+
+def test_call_envelope_stays_with_protected_result():
+    """A result protected by a later reference keeps its call (OpenAI APIs 400 on orphans)."""
+    call = {"role": "assistant", "content": "", "tool_calls": [
+        {"id": "c1", "type": "function", "function": {"name": "bash", "arguments": "{}"}}]}
+    result = {"role": "tool", "tool_call_id": "c1",
+              "content": "[Tool Output Ref #5 — bash | 900 lines saved by ContextGC]"}
+    later = {"role": "user", "content": "referring to [Tool Output Ref #5 again: what did it say? " + "context padding. " * 60}
+    filler = _filler("bulk", n_turns=3)
+    payload = _payload({"role": "user", "content": "start"}, call, result, later, *filler,
+                       {"role": "user", "content": "continue"})
+    out, _ = _run(payload, evict_token_budget=900)
+    msgs = json.loads(out)["messages"]
+    assert any(m.get("tool_call_id") == "c1" for m in msgs)
+    assert _orphans(msgs) == ([], [])
+
+
+def test_repair_fixes_only_pairs_the_pipeline_broke():
+    from app.core.gc import _repair_tool_pairs
+    call = lambda i: {"role": "assistant", "content": "", "tool_calls": [  # noqa: E731
+        {"id": i, "type": "function", "function": {"name": "x", "arguments": "{}"}}]}
+    res = lambda i: {"role": "tool", "tool_call_id": i, "content": "r"}  # noqa: E731
+    original = [{"role": "user", "content": "go"}, call("a"), res("a"), call("b"), res("b"),
+                res("client-orphan"), {"role": "user", "content": "continue"}]
+    # a stage removed a's call and b's result
+    payload = {"messages": [original[0], original[2], original[3], original[5], original[6]]}
+    report = {}
+    assert _repair_tool_pairs(payload, report, original)
+    msgs = payload["messages"]
+    assert [m.get("tool_call_id") for m in msgs if m.get("role") == "tool"] == ["client-orphan"]
+    assert not any(m.get("tool_calls") for m in msgs)          # b's call dropped with its result
+    assert report["tool_pair_repairs"] == 2

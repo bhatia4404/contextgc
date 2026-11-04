@@ -122,6 +122,9 @@ def ensure_pinned(payload: dict, endpoint_family: str,
         return chosen, None
     capacity_details = None
     candidate = _client_window(payload, endpoint_family)
+    if not candidate and not settings.sink_is_ollama:
+        # A hosted API has no local VRAM to probe: the window is a prompt budget.
+        candidate = settings.numctx_default
     if not candidate:
         from app.core.capacity import choose_window
         candidate, capacity_details = choose_window(
@@ -170,4 +173,5 @@ def negotiate(payload: dict, report: dict, endpoint_family: str, run_id: str = "
         return changed
     neg["injected_where"] = "report_only"
     neg["report_only_reason"] = "OpenAI-compatible non-Ollama sink"
-    return False
+    # A client's num_ctx is a budget hint for ContextGC, not a field the hosted API knows.
+    return payload.pop("num_ctx", None) is not None

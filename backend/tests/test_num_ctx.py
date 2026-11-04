@@ -88,6 +88,22 @@ def test_v1_cloud_sink_report_only(settings_factory):
     assert "num_ctx" not in fwd and "options" not in fwd  # clean toward cloud sinks
 
 
+def test_cloud_sink_uses_client_budget_and_strips_it(settings_factory):
+    settings_factory(gc_enabled=True, sink="https://api.meta.ai")
+    payload = {"model": "m", "num_ctx": 6144, "messages": [{"role": "user", "content": "hi"}]}
+    out, report = process_payload("/v1/chat/completions", json.dumps(payload).encode(), run_id="budget")
+    assert report["numctx_negotiation"]["chosen_num_ctx"] == 6144   # the hint is ContextGC's budget
+    assert "num_ctx" not in json.loads(out)                         # ...and never reaches the API
+
+
+def test_cloud_sink_without_hint_uses_default_budget(settings_factory):
+    s = settings_factory(gc_enabled=True, sink="https://api.meta.ai")
+    payload = {"model": "m", "messages": [{"role": "user", "content": "hi"}]}
+    _, report = process_payload("/v1/chat/completions", json.dumps(payload).encode(), run_id="nohint")
+    neg = report["numctx_negotiation"]
+    assert neg["chosen_num_ctx"] == s.numctx_default and "capacity_probe" not in neg
+
+
 def test_negotiation_sizes_after_dedup(settings_factory):
     settings_factory(gc_enabled=True)
     shared = "Understood. Proceeding with the identical boilerplate sentence for the record now."  * 2

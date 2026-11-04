@@ -150,6 +150,23 @@ def _tool_groups(messages: list, candidates: list[int]) -> list[list[int]]:
             else:
                 del groups[root]
 
+    # ...and the other way round: a call envelope goes only together with every
+    # one of its results. A protected result keeps its call; otherwise the
+    # result would be orphaned, which strict OpenAI-style APIs reject (400).
+    results_of: dict[int, list[int]] = {}
+    for j, msg in enumerate(messages):
+        if isinstance(msg, dict) and msg.get("tool_call_id") is not None:
+            parent = call_to_idx.get(str(msg.get("tool_call_id")))
+            if parent is not None:
+                results_of.setdefault(parent, []).append(j)
+    for root, members in list(groups.items()):
+        needed = [j for i in members for j in results_of.get(i, [])]
+        if any(j not in candidate_set for j in needed):
+            del groups[root]
+            candidate_set -= set(members)   # no later pairing may pull these back in
+        else:
+            members.extend(j for j in needed if j not in members)
+
     # Add the user instruction to a tool-bearing assistant group as well. This
     # keeps "user -> assistant tool call -> tool result" atomic, not merely the
     # assistant/result sub-pair.

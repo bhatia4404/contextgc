@@ -43,6 +43,48 @@ _STAGE_PRESETS: dict[str, Optional[set[str]]] = {
 }
 
 
+def _call_ids(messages: list) -> tuple[set[str], set[str]]:
+    called = {str(c.get("id")) for m in messages if isinstance(m, dict)
+              for c in (m.get("tool_calls") or []) if isinstance(c, dict) and c.get("id")}
+    answered = {str(m.get("tool_call_id")) for m in messages
+                if isinstance(m, dict) and m.get("tool_call_id") is not None}
+    return called, answered
+
+
+def _repair_tool_pairs(payload: dict, report: dict, original: list) -> bool:
+    """Drop tool results whose call a stage removed, and calls whose results it removed.
+
+    Ollama tolerates such orphans; OpenAI-style APIs answer 400. Only pairs
+    that were complete in the client's request are repaired: what the client
+    itself sent is never second-guessed. Originals stay in the store.
+    """
+    messages = payload.get("messages")
+    if not isinstance(messages, list) or not isinstance(original, list):
+        return False
+    called, answered = _call_ids(messages)
+    orig_called, orig_answered = _call_ids(original)
+    called |= {i for i in orig_answered if i not in orig_called}     # the client's own orphans stay
+    answered |= {i for i in orig_called if i not in orig_answered}   # ...and its own pending calls
+    kept, repairs = [], 0
+    for m in messages:
+        if isinstance(m, dict) and m.get("tool_call_id") is not None and str(m["tool_call_id"]) not in called:
+            repairs += 1
+            continue                                   # result without its call
+        calls = m.get("tool_calls") if isinstance(m, dict) else None
+        if calls:
+            live = [c for c in calls if not isinstance(c, dict) or not c.get("id") or str(c["id"]) in answered]
+            if len(live) != len(calls):
+                repairs += len(calls) - len(live)
+                if not live and not (m.get("content") or "").strip():
+                    continue                           # nothing left of this turn
+                m = {**m, "tool_calls": live} if live else {k: v for k, v in m.items() if k != "tool_calls"}
+        kept.append(m)
+    if repairs:
+        payload["messages"] = kept
+        report["tool_pair_repairs"] = repairs
+    return bool(repairs)
+
+
 def parse_stages_header(value: str | None) -> Optional[set[str]]:
     """Header value: 'full', 'none', 'anchor_only' or 'no_<stage>' (see STAGES)."""
     if not value:
@@ -178,6 +220,11 @@ def process_payload(path: str, body: bytes, run_id: str = "default",
             report["compaction"] = True
 
     if fidelity_raw or retry:
+        modified = True
+
+    # --- tool-pair integrity: whatever the stages removed, never send a tool
+    #     result without its call or a call without its results ---
+    if _repair_tool_pairs(payload, report, raw_payload.get("messages")):
         modified = True
 
     # --- Stage 1.7: dynamic num_ctx negotiation (LAST: sizes what remains) ---
