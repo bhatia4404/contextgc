@@ -29,6 +29,7 @@
 | You are… | Read this | Time |
 |---|---|---|
 | **A judge** who wants results without installing anything | [Results](#results-measured-on-gpus) and the [live site](https://shivambhatia4404--contextgc-showcase-web.us-east.modal.run) (start a real GPU run from the browser) | 2–5 min |
+| **Want the dashboard on your machine** or your own hosted copy | [Run the dashboard yourself](#run-the-dashboard-yourself) | 5 min (local) to ~20 min (hosted) |
 | **A judge** checking that it works | [Quick start: verify it works](#quick-start-verify-it-works-cpu-only-no-gpu-needed), steps 1–6 | 10 s (tests) to ~20 min (full walkthrough) |
 | **New to the project** and want to use it with your own agent | [User guide](#user-guide-run-your-own-agent-through-contextgc) | 15 min |
 | **Running it on a GPU** (local, cloud VM or Modal) | [Running anywhere](#running-anywhere-cpu-a-remote-gpu-box-or-modal) | 15 min |
@@ -141,6 +142,56 @@ The Meta API results were measured with the latest code.
 (one container per task; survives a closed laptop). Fetch with
 `modal volume get contextgc-results <name> backend/benchmark/results/modal/` and merge with
 `python backend/benchmark/merge_results.py backend/benchmark/results/modal/<name>`.
+
+---
+
+## Run the dashboard yourself
+
+The dashboard is two parts: a React app in [`frontend/`](frontend/) and a JSON API in
+[`deploy/api_app.py`](deploy/api_app.py) that serves the results and runs live GPU jobs on Modal.
+
+**Local preview: no account or Modal login needed.** Needs Node.js 18 or newer.
+
+```powershell
+cd frontend
+npm install
+npm run dev          # open http://localhost:5173
+```
+
+The local app reads the results from, and starts live runs on, the already-hosted API (its address is
+in `frontend/.env.development`). Live runs started locally count toward the same shared daily limit.
+
+**Host your own copy: needs a Modal account and login.** Both apps run on Modal, so authorize once and
+fill the weights Volume the live runs load from:
+
+```powershell
+pip install modal
+modal token new                                          # opens the browser to log in (once)
+modal run deploy/modal_app.py::pull --models qwen2.5:7b  # weights for live runs (CPU only, cheap)
+```
+
+Modal URLs contain your workspace name (and may include a region, e.g. `.us-east.modal.run`), so point
+the two apps at each other before deploying:
+
+- `deploy/api_app.py`: put your frontend URL (`https://<workspace>--contextgc-showcase-web.modal.run`)
+  in `ALLOWED_ORIGINS`.
+- `frontend/.env.production`: set `VITE_API_URL` to your API URL
+  (`https://<workspace>--contextgc-api-api.modal.run`).
+
+Then deploy (the first `modal deploy` prints the exact URLs, so you may deploy once, copy them, and deploy again):
+
+```powershell
+modal deploy deploy/api_app.py                                  # API + live GPU runner
+cd frontend; npm install; npm run build; cd ..
+modal deploy deploy/frontend_app.py                             # the website
+```
+
+Notes:
+- Live runs use a T4 GPU, one at a time, about $0.06 each, capped at 25 per day
+  (`LIVE_DAILY_CAP` in `deploy/api_app.py`). GPU use needs a payment method on the Modal account.
+- The results shown come from `deploy/data/showcase.json`. To show your own benchmark runs, rebuild it
+  with `python deploy/build_showcase.py ...` (see its docstring) and deploy the API again.
+- Both apps scale to zero, so an idle dashboard costs nothing.
 
 ---
 
